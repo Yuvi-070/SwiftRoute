@@ -16,6 +16,8 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="create-trip" options={{ headerShown: true }} />
         <Stack.Screen name="itinerary/[id]" />
+        <Stack.Screen name="packing-list/[id]" />
+        <Stack.Screen name="expense-tracker/[id]" />
       </Stack>
     </TripProvider>
   );

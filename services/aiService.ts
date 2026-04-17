@@ -1,3 +1,6 @@
+import type { WeatherForecast } from './weatherService';
+import { buildWeatherPromptContext } from './weatherService';
+
 export interface TripDetails {
   destination: string;
   destinationCoords?: { lat: number; lng: number };
@@ -34,10 +37,21 @@ export interface GeneratedItinerary {
   travelTips: string[];
 }
 
+export interface PackingCategory {
+  category: string;
+  items: string[];
+}
+
+export interface PackingList {
+  destination: string;
+  totalDays: number;
+  categories: PackingCategory[];
+}
+
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = 'llama3-8b-8192';
 
-function buildPrompt(trip: TripDetails): string {
+function buildPrompt(trip: TripDetails, weather?: WeatherForecast): string {
   const budgetLabel =
     trip.budget === 'budget'
       ? 'budget-friendly (spend as little as possible)'
@@ -54,13 +68,17 @@ function buildPrompt(trip: TripDetails): string {
           ? `a family of ${trip.travelersCount}`
           : `a group of ${trip.travelersCount} friends`;
 
+  const weatherSection = weather
+    ? `\n${buildWeatherPromptContext(weather)}\nUse this weather forecast to tailor each day's activities — suggest indoor alternatives (museums, cafes, galleries) on rainy or snowy days, and outdoor highlights on clear days.\n`
+    : '';
+
   return `You are an expert travel planner. Create a detailed ${trip.totalDays}-day travel itinerary for ${trip.destination}.
 
 Trip details:
 - Travelers: ${travelersLabel}
 - Budget style: ${budgetLabel}
 - Travel dates: ${trip.startDate} to ${trip.endDate}
-
+${weatherSection}
 IMPORTANT: Return ONLY a raw JSON object with no markdown, no code blocks, no extra text.
 
 The JSON must follow this exact structure:
@@ -106,9 +124,7 @@ The JSON must follow this exact structure:
 Generate exactly ${trip.totalDays} day objects in the itinerary array. Each day must have exactly 3 activities (Morning, Afternoon, Evening).`;
 }
 
-export async function generateItinerary(
-  trip: TripDetails
-): Promise<GeneratedItinerary> {
+async function callGroq(prompt: string, systemMessage: string): Promise<string> {
   const apiKey = process.env.EXPO_PUBLIC_GROQ_API_KEY;
   if (!apiKey) {
     throw new Error('Groq API key is missing. Set EXPO_PUBLIC_GROQ_API_KEY in your .env file.');
@@ -123,15 +139,8 @@ export async function generateItinerary(
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        {
-          role: 'system',
-          content:
-            'You are a professional travel planner. You always respond with valid, raw JSON only — no markdown, no code fences, no commentary.',
-        },
-        {
-          role: 'user',
-          content: buildPrompt(trip),
-        },
+        { role: 'system', content: systemMessage },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.7,
       max_tokens: 4096,
@@ -146,17 +155,70 @@ export async function generateItinerary(
   const data = await response.json();
   const content: string = data.choices?.[0]?.message?.content ?? '';
 
-  // Strip any accidental markdown fences before parsing
-  const cleaned = content
+  return content
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```\s*$/i, '')
     .trim();
+}
+
+export async function generateItinerary(
+  trip: TripDetails,
+  weather?: WeatherForecast
+): Promise<GeneratedItinerary> {
+  const cleaned = await callGroq(
+    buildPrompt(trip, weather),
+    'You are a professional travel planner. You always respond with valid, raw JSON only — no markdown, no code fences, no commentary.'
+  );
 
   try {
     return JSON.parse(cleaned) as GeneratedItinerary;
   } catch (parseErr) {
     throw new Error(
       `Failed to parse AI response as JSON. Parse error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Response preview: ${cleaned.slice(0, 400)}`
+    );
+  }
+}
+
+export async function generatePackingList(
+  trip: TripDetails,
+  weather?: WeatherForecast
+): Promise<PackingList> {
+  const weatherNote = weather
+    ? `\n${buildWeatherPromptContext(weather)}\nUse the forecast to include weather-appropriate items (e.g. umbrella for rainy days, sunscreen for clear weather).`
+    : '';
+
+  const prompt = `Generate a smart packing list for a ${trip.totalDays}-day trip to ${trip.destination}.
+Travel dates: ${trip.startDate} to ${trip.endDate}.
+Travelers: ${trip.travelers} (${trip.travelersCount} people).
+Budget style: ${trip.budget}.
+${weatherNote}
+
+IMPORTANT: Return ONLY a raw JSON object with no markdown, no code blocks, no extra text.
+
+The JSON must follow this exact structure:
+{
+  "destination": "string",
+  "totalDays": number,
+  "categories": [
+    {
+      "category": "string (e.g. Clothing, Toiletries, Documents, Electronics, Health & Safety)",
+      "items": ["string", "string"]
+    }
+  ]
+}
+
+Include 5-7 categories with 4-8 relevant items each. Be specific and practical.`;
+
+  const cleaned = await callGroq(
+    prompt,
+    'You are a professional travel packing expert. You always respond with valid, raw JSON only — no markdown, no code fences, no commentary.'
+  );
+
+  try {
+    return JSON.parse(cleaned) as PackingList;
+  } catch (parseErr) {
+    throw new Error(
+      `Failed to parse packing list response. Parse error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Response preview: ${cleaned.slice(0, 400)}`
     );
   }
 }
