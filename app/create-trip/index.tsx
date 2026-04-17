@@ -15,6 +15,8 @@ import MapboxAutocomplete, { type MapboxPlace } from '../../components/MapboxAut
 import { db } from '../../configs/firebaseConfig';
 import { Colors } from '../../constants/theme';
 import { generateItinerary, type TripDetails } from '../../services/aiService';
+import { saveTrip, saveWeather } from '../../services/storageService';
+import { fetchWeatherForecast } from '../../services/weatherService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -167,16 +169,47 @@ export default function CreateTrip() {
         budget: form.budget,
       };
 
-      const itinerary = await generateItinerary(tripDetails);
+      // Fetch weather forecast (free, no API key) — non-blocking on failure
+      let weather;
+      try {
+        weather = await fetchWeatherForecast(
+          tripDetails.destination,
+          tripDetails.startDate,
+          tripDetails.endDate,
+          tripDetails.destinationCoords
+        );
+      } catch (weatherErr) {
+        console.warn('[CreateTrip] Weather fetch failed, continuing without it:', weatherErr);
+      }
 
-      // Persist to Firestore
-      const docRef = await addDoc(collection(db, 'trips'), {
-        tripDetails,
+      const itinerary = await generateItinerary(tripDetails, weather);
+
+      // Persist to Firestore (may fail if not configured)
+      let tripId: string | null = null;
+      try {
+        const docRef = await addDoc(collection(db, 'trips'), {
+          tripDetails,
+          itinerary,
+          createdAt: new Date().toISOString(),
+        });
+        tripId = docRef.id;
+      } catch (firestoreErr) {
+        console.warn('[CreateTrip] Firestore save failed, using local ID:', firestoreErr);
+      }
+
+      // Always save locally for offline access
+      const localId = tripId ?? `local_${Date.now()}`;
+      await saveTrip({
+        id: localId,
+        tripDetails: tripDetails as unknown as Record<string, unknown>,
         itinerary,
         createdAt: new Date().toISOString(),
       });
+      if (weather) {
+        await saveWeather(localId, weather);
+      }
 
-      router.replace(`/itinerary/${docRef.id}` as never);
+      router.replace(`/itinerary/${localId}` as never);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
       setError(msg);

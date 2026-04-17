@@ -13,6 +13,7 @@ import {
 import { db } from '../../configs/firebaseConfig';
 import { Colors } from '../../constants/theme';
 import type { DayItinerary, GeneratedItinerary } from '../../services/aiService';
+import { loadTrip } from '../../services/storageService';
 
 const TIME_COLORS: Record<string, string> = {
   Morning: '#F5A623',
@@ -46,14 +47,27 @@ export default function ItineraryScreen() {
     if (!id) return;
     (async () => {
       try {
+        // Try Firestore first
         const docRef = doc(db, 'trips', id);
         const snap = await getDoc(docRef);
-        if (!snap.exists()) {
-          setError('Trip not found.');
+        if (snap.exists()) {
+          const data = snap.data();
+          setItinerary(data.itinerary as GeneratedItinerary);
+          setLoading(false);
           return;
         }
-        const data = snap.data();
-        setItinerary(data.itinerary as GeneratedItinerary);
+      } catch {
+        // Firestore unavailable – fall through to local storage
+      }
+
+      // Fall back to local storage (offline mode)
+      try {
+        const local = await loadTrip(id);
+        if (local) {
+          setItinerary(local.itinerary);
+        } else {
+          setError('Trip not found.');
+        }
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Failed to load itinerary.';
         setError(msg);
@@ -108,6 +122,24 @@ export default function ItineraryScreen() {
             <Ionicons name="cash-outline" size={13} color={Colors.WHITE} />
             <Text style={styles.heroBadgeText}>{itinerary.estimatedTotalCost}</Text>
           </View>
+        </View>
+
+        {/* Quick-action buttons */}
+        <View style={styles.heroActions}>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => router.push(`/packing-list/${id}` as never)}
+          >
+            <Ionicons name="bag-outline" size={16} color={Colors.PRIMARY} />
+            <Text style={styles.heroActionText}>Packing List</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => router.push(`/expense-tracker/${id}` as never)}
+          >
+            <Ionicons name="wallet-outline" size={16} color={Colors.PRIMARY} />
+            <Text style={styles.heroActionText}>Expenses</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -440,6 +472,25 @@ const styles = StyleSheet.create({
     fontFamily: 'outfit-medium',
     fontSize: 12,
     color: Colors.WHITE,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  heroActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.WHITE,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+  },
+  heroActionText: {
+    fontFamily: 'outfit-medium',
+    fontSize: 13,
+    color: Colors.PRIMARY,
   },
   scroll: {
     flex: 1,

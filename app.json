@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "ai-travel-planner-app",
-    "slug": "ai-travel-planner-app",
+    "name": "SwiftRoute",
+    "slug": "swiftroute",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "aitravelplannerapp",
+    "scheme": "swiftroute",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

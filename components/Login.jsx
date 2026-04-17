@@ -20,7 +20,7 @@ export default function Login() {
                 fontFamily: 'outfit-bold',
                 textAlign: 'center',
                 marginTop: 10
-            }}>AI Travel Planner</Text>
+            }}>Welcome to SwiftRoute</Text>
 
             <Text style={{
                 fontFamily: 'outfit-regular',
