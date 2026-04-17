@@ -15,6 +15,7 @@ import {
 import StartNewTripCard from '../../components/MyTrips/StartNewTripCard';
 import { db } from '../../configs/firebaseConfig';
 import { Colors } from '../../constants/theme';
+import { loadAllTrips } from '../../services/storageService';
 
 export default function MyTrip() {
   const router = useRouter();
@@ -29,9 +30,15 @@ export default function MyTrip() {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setTrips(data);
     } catch (err) {
-      // Firestore may not be configured yet – log and fall back to empty list
-      console.warn('[MyTrip] Failed to load trips from Firestore:', err);
-      setTrips([]);
+      // Firestore may not be configured yet – fall back to local AsyncStorage
+      console.warn('[MyTrip] Firestore unavailable, loading from local storage:', err);
+      try {
+        const localTrips = await loadAllTrips();
+        setTrips(localTrips);
+      } catch (localErr) {
+        console.warn('[MyTrip] Local storage also failed:', localErr);
+        setTrips([]);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { createUserWithEmailAndPassword, getAuth, user } from 'firebase/auth';
+import { createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { app } from '../../../configs/FirebaseConfig';
@@ -63,7 +63,6 @@ export default function SignUp() {
             createUserWithEmailAndPassword(auth, trimmedEmail, password);
             // router.replace('/auth/sign-in');
             router.replace('/(tabs)/mytrip');
-            console.log(user);
 
             
         } catch (err) {

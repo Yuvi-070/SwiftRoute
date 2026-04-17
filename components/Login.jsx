@@ -23,7 +23,7 @@ export default function Login() {
             }}>Welcome to SwiftRoute</Text>
 
             <Text style={{
-                fontFamily: 'outfit-regular',
+                fontFamily: 'outfit',
                 textAlign: 'center',
                 fontSize: 17,
                 color: Colors.GRAY,
