@@ -1,59 +1,55 @@
-import { useNavigation } from '@react-navigation/native';
-import React, { useEffect } from 'react';
-import { Text, View } from 'react-native';
-
-// import { useRouter } from 'expo-router'
-// import Ionicons from '@expo/vector-icons/Ionicons'
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
+import { useNavigation, useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import MapboxAutocomplete from '../../components/MapboxAutocomplete';
 import { Colors } from '../../constants/theme';
 
-
 export default function SearchPlace() {
+  const navigation = useNavigation();
+  const router = useRouter();
 
-    const navigation = useNavigation();
-
-    useEffect(() => {
-        navigation.setOptions({ 
-            headerShown: true,
-            headerTransparent: true,
-            headerTitle:'Search',
-            headerTintColor:'black',
-         });
-    }, [navigation]);
-  const [error, setError] = React.useState(null);
+  useEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTransparent: false,
+      headerTitle: 'Search Destination',
+      headerTintColor: Colors.DARK,
+      headerStyle: { backgroundColor: Colors.WHITE },
+    });
+  }, [navigation]);
 
   return (
-    <View
-      style={{
-        padding: 25,
-        paddingTop: 75,
-        backgroundColor: Colors.WHITE,
-        height: '100%'
-      }}
-    >
-      {/* ...existing code... */}
-      <GooglePlacesAutocomplete
-        placeholder='Search'
-        onPress={(data, details = null) => {
-          // 'details' is provided when fetchDetails = true
-          setError(null);
-          console.log(data, details);
-        }}
-        query={{
-          key: 'AlzaSyAxOzax99f80187YCgbOHRs3RpfE2o',
-          language: 'en',
-        }}
-        onFail={(error) => {
-          setError('Failed to fetch places. Please check your API key and network connection.');
-          console.error('GooglePlacesAutocomplete error:', error);
-          
+    <View style={styles.container}>
+      <Text style={styles.hint}>Search for a city or country to start your trip.</Text>
+      <MapboxAutocomplete
+        placeholder="e.g. Paris, Tokyo, New York…"
+        onPlaceSelect={(place) => {
+          // Navigate to the create-trip flow with the selected destination
+          router.replace({
+            pathname: '/create-trip',
+            params: {
+              destination: place.place_name,
+              lat: place.center[1],
+              lng: place.center[0],
+            },
+          });
         }}
       />
-      {error && (
-        <View style={{ marginTop: 20, padding: 10, backgroundColor: '#ffe6e6', borderRadius: 8 }}>
-          <Text style={{ color: '#d32f2f', textAlign: 'center' }}>{error}</Text>
-        </View>
-      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.BACKGROUND,
+    padding: 24,
+    paddingTop: 20,
+  },
+  hint: {
+    fontFamily: 'outfit',
+    fontSize: 15,
+    color: Colors.GRAY,
+    marginBottom: 16,
+  },
+});
