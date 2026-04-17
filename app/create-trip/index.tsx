@@ -35,6 +35,7 @@ interface TripFormState {
 
 const STEPS = ['Destination', 'Duration', 'Travelers', 'Budget', 'Review'] as const;
 const TOTAL_STEPS = STEPS.length;
+const DEFAULT_START_DATE_OFFSET_DAYS = 7;
 
 const TRAVELER_OPTIONS: { key: TravelerType; label: string; icon: string; desc: string }[] = [
   { key: 'solo', label: 'Solo', icon: 'person-outline', desc: 'Just you, total freedom' },
@@ -95,7 +96,7 @@ export default function CreateTrip() {
     destination: '',
     destinationCoords: undefined,
     totalDays: 3,
-    startDate: addDays(new Date(), 7),
+    startDate: addDays(new Date(), DEFAULT_START_DATE_OFFSET_DAYS),
     travelers: 'solo',
     travelersCount: 1,
     budget: 'moderate',

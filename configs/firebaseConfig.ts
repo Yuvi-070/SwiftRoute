@@ -21,7 +21,10 @@ try {
   _auth = initializeAuth(app, {
     persistence: inMemoryPersistence,
   });
-} catch {
+} catch (err) {
+  // initializeAuth can throw if called more than once (e.g. hot reload).
+  // Fall back to getAuth which returns the already-initialised instance.
+  console.warn('[Firebase] initializeAuth fallback:', err);
   _auth = getAuth(app);
 }
 

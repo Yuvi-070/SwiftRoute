@@ -28,7 +28,9 @@ export default function MyTrip() {
       const snap = await getDocs(q);
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setTrips(data);
-    } catch {
+    } catch (err) {
+      // Firestore may not be configured yet – log and fall back to empty list
+      console.warn('[MyTrip] Failed to load trips from Firestore:', err);
       setTrips([]);
     } finally {
       setLoading(false);

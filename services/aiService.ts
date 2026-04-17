@@ -154,7 +154,9 @@ export async function generateItinerary(
 
   try {
     return JSON.parse(cleaned) as GeneratedItinerary;
-  } catch {
-    throw new Error('Failed to parse AI response as JSON. Response was: ' + cleaned.slice(0, 200));
+  } catch (parseErr) {
+    throw new Error(
+      `Failed to parse AI response as JSON. Parse error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Response preview: ${cleaned.slice(0, 400)}`
+    );
   }
 }

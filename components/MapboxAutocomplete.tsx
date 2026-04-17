@@ -19,12 +19,13 @@ export interface MapboxPlace {
   place_type: string[];
 }
 
+const MAPBOX_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
+const DEBOUNCE_DELAY_MS = 350;
+
 interface Props {
   placeholder?: string;
   onPlaceSelect: (place: MapboxPlace) => void;
 }
-
-const MAPBOX_BASE = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
 export default function MapboxAutocomplete({
   placeholder = 'Search destination…',
@@ -69,7 +70,7 @@ export default function MapboxAutocomplete({
   const onChangeText = (text: string) => {
     setQuery(text);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchPlaces(text), 350);
+    debounceRef.current = setTimeout(() => fetchPlaces(text), DEBOUNCE_DELAY_MS);
   };
 
   const handleSelect = (place: MapboxPlace) => {
