@@ -44,8 +44,6 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "extra": {
-      "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "YOUR_GOOGLE_PLACES_API_KEY"
-    }
+    "extra": {}
   }
 }
