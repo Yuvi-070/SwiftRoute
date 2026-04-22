@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, initializeAuth, inMemoryPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp } from "firebase/app";
+import { getAuth, initializeAuth, inMemoryPersistence } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -15,7 +15,7 @@ export const app = initializeApp(firebaseConfig);
 
 // Use inMemoryPersistence as the base; sessions persist as long as the app is
 // open. For cross-session persistence, set up a custom persistence adapter
-// using @react-native-async-storage/async-storage with your Firebase version.
+// using @react-native-async-storage/async-storage with your Firebase version and al versions.
 let _auth;
 try {
   _auth = initializeAuth(app, {
@@ -24,7 +24,7 @@ try {
 } catch (err) {
   // initializeAuth can throw if called more than once (e.g. hot reload).
   // Fall back to getAuth which returns the already-initialised instance.
-  console.warn('[Firebase] initializeAuth fallback:', err);
+  console.warn("[Firebase] initializeAuth fallback:", err);
   _auth = getAuth(app);
 }
 
