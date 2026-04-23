@@ -1,21 +1,36 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
 import {
+  Animated,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Colors } from '../../constants/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { radii, spacing, typography } from '../../constants/theme';
+import AnimatedCard from '../../components/ui/AnimatedCard';
+import PressableScale from '../../components/ui/PressableScale';
 
 const TRENDING = [
-  { emoji: '🗼', name: 'Paris', country: 'France', tag: 'Romance' },
-  { emoji: '🏯', name: 'Kyoto', country: 'Japan', tag: 'Culture' },
-  { emoji: '🏖️', name: 'Bali', country: 'Indonesia', tag: 'Beach' },
-  { emoji: '🌉', name: 'New York', country: 'USA', tag: 'City' },
-  { emoji: '🏔️', name: 'Queenstown', country: 'New Zealand', tag: 'Adventure' },
-  { emoji: '🕌', name: 'Istanbul', country: 'Turkey', tag: 'History' },
+  { emoji: '🗼', name: 'Paris', country: 'France', tag: 'Romance', gradient: ['#6366F1', '#8B5CF6'] },
+  { emoji: '🏯', name: 'Kyoto', country: 'Japan', tag: 'Culture', gradient: ['#F43F5E', '#FB7185'] },
+  { emoji: '🏖️', name: 'Bali', country: 'Indonesia', tag: 'Beach', gradient: ['#14B8A6', '#2DD4BF'] },
+  { emoji: '🌉', name: 'New York', country: 'USA', tag: 'City', gradient: ['#F59E0B', '#FBBF24'] },
+  { emoji: '🏔️', name: 'Queenstown', country: 'New Zealand', tag: 'Adventure', gradient: ['#10B981', '#34D399'] },
+  { emoji: '🕌', name: 'Istanbul', country: 'Turkey', tag: 'History', gradient: ['#8B5CF6', '#A78BFA'] },
+];
+
+const CATEGORIES = [
+  { icon: 'sunny-outline', label: 'Beach', color: '#14B8A6' },
+  { icon: 'snow-outline', label: 'Winter', color: '#6366F1' },
+  { icon: 'restaurant-outline', label: 'Food', color: '#F43F5E' },
+  { icon: 'walk-outline', label: 'Adventure', color: '#F59E0B' },
+  { icon: 'camera-outline', label: 'Culture', color: '#8B5CF6' },
+  { icon: 'heart-outline', label: 'Romance', color: '#FB7185' },
 ];
 
 const TRAVEL_TIPS = [
@@ -29,67 +44,180 @@ const TRAVEL_TIPS = [
 
 export default function Discover() {
   const router = useRouter();
+  const { theme, isDark } = useTheme();
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Discover</Text>
-        <Text style={styles.headerSub}>Inspiration for your next adventure</Text>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
+      <View style={{ flex: 1, width: '100%', maxWidth: 1000, alignSelf: 'center' }}>
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Discover</Text>
+        <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
+          Inspiration for your next adventure
+        </Text>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Start planning CTA */}
-        <TouchableOpacity
-          style={styles.ctaCard}
-          activeOpacity={0.88}
-          onPress={() => router.push('/create-trip')}
-        >
-          <View style={styles.ctaTextCol}>
-            <Text style={styles.ctaTitle}>Plan a new trip ✨</Text>
-            <Text style={styles.ctaBody}>Let our AI build a personalised itinerary in seconds.</Text>
-          </View>
-          <Ionicons name="arrow-forward-circle" size={36} color={Colors.WHITE} />
-        </TouchableOpacity>
+        {/* CTA Card */}
+        <AnimatedCard delay={0}>
+          <PressableScale onPress={() => router.push('/create-trip')}>
+            <View style={[styles.ctaCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border, borderWidth: 1 }]}>
+              <View
+                style={[
+                  StyleSheet.absoluteFillObject,
+                  { backgroundColor: theme.primary, opacity: 0.15, borderRadius: radii.xl },
+                ]}
+              />
+              <View style={styles.ctaTextCol}>
+                <Text style={[styles.ctaTitle, { color: theme.textPrimary }]}>Plan a new trip ✨</Text>
+                <Text style={[styles.ctaBody, { color: theme.textSecondary }]}>
+                  Let our AI build a personalised itinerary in seconds.
+                </Text>
+              </View>
+              <View style={[styles.ctaArrow, { backgroundColor: theme.primary }]}>
+                <Ionicons name="arrow-forward" size={20} color="#FFF" />
+              </View>
+            </View>
+          </PressableScale>
+        </AnimatedCard>
+
+        {/* Category chips */}
+        <AnimatedCard delay={80}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryRow}
+          >
+            {CATEGORIES.map((cat) => (
+              <PressableScale
+                key={cat.label}
+                onPress={() => router.push('/create-trip')}
+              >
+                <View
+                  style={[
+                    styles.categoryChip,
+                    {
+                      backgroundColor: isDark
+                        ? cat.color + '18'
+                        : cat.color + '12',
+                      borderColor: isDark ? cat.color + '30' : cat.color + '20',
+                    },
+                  ]}
+                >
+                  <Ionicons name={cat.icon} size={18} color={cat.color} />
+                  <Text style={[styles.categoryLabel, { color: cat.color }]}>
+                    {cat.label}
+                  </Text>
+                </View>
+              </PressableScale>
+            ))}
+          </ScrollView>
+        </AnimatedCard>
 
         {/* Trending destinations */}
-        <Text style={styles.sectionTitle}>🔥 Trending Destinations</Text>
+        <AnimatedCard delay={160}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+            🔥 Trending Destinations
+          </Text>
+        </AnimatedCard>
         <View style={styles.grid}>
-          {TRENDING.map((dest) => (
-            <TouchableOpacity
-              key={dest.name}
-              style={styles.destCard}
-              activeOpacity={0.82}
-              onPress={() => router.push('/create-trip')}
-            >
-              <Text style={styles.destEmoji}>{dest.emoji}</Text>
-              <Text style={styles.destName}>{dest.name}</Text>
-              <Text style={styles.destCountry}>{dest.country}</Text>
-              <View style={styles.destTag}>
-                <Text style={styles.destTagText}>{dest.tag}</Text>
-              </View>
-            </TouchableOpacity>
+          {TRENDING.map((dest, i) => (
+            <AnimatedCard key={dest.name} delay={200 + i * 60}>
+              <PressableScale onPress={() => router.push('/create-trip')}>
+                <View
+                  style={[
+                    styles.destCard,
+                    {
+                      backgroundColor: theme.surfaceElevated,
+                      borderColor: theme.border,
+                      ...Platform.select({
+                        ios: {
+                          shadowColor: theme.shadowColor,
+                          shadowOffset: { width: 0, height: 3 },
+                          shadowOpacity: theme.shadowOpacity,
+                          shadowRadius: 10,
+                        },
+                        android: { elevation: 2 },
+                      }),
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.destEmojiBox,
+                      { backgroundColor: dest.gradient[0] + '15' },
+                    ]}
+                  >
+                    <Text style={styles.destEmoji}>{dest.emoji}</Text>
+                  </View>
+                  <Text style={[styles.destName, { color: theme.textPrimary }]}>
+                    {dest.name}
+                  </Text>
+                  <Text style={[styles.destCountry, { color: theme.textSecondary }]}>
+                    {dest.country}
+                  </Text>
+                  <View
+                    style={[
+                      styles.destTag,
+                      { backgroundColor: dest.gradient[0] + '15' },
+                    ]}
+                  >
+                    <Text style={[styles.destTagText, { color: dest.gradient[0] }]}>
+                      {dest.tag}
+                    </Text>
+                  </View>
+                </View>
+              </PressableScale>
+            </AnimatedCard>
           ))}
         </View>
 
         {/* Travel tips */}
-        <Text style={styles.sectionTitle}>💡 Smart Travel Tips</Text>
-        {TRAVEL_TIPS.map((tip) => (
-          <View key={tip.title} style={styles.tipCard}>
-            <View style={styles.tipIconBox}>
-              <Ionicons name={tip.icon} size={22} color={Colors.PRIMARY} />
+        <AnimatedCard delay={500}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+            💡 Smart Travel Tips
+          </Text>
+        </AnimatedCard>
+        {TRAVEL_TIPS.map((tip, i) => (
+          <AnimatedCard key={tip.title} delay={540 + i * 60}>
+            <View
+              style={[
+                styles.tipCard,
+                {
+                  backgroundColor: theme.surfaceElevated,
+                  borderColor: theme.border,
+                  ...Platform.select({
+                    ios: {
+                      shadowColor: theme.shadowColor,
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: theme.shadowOpacity * 0.6,
+                      shadowRadius: 6,
+                    },
+                    android: { elevation: 1 },
+                  }),
+                },
+              ]}
+            >
+              <View style={[styles.tipIconBox, { backgroundColor: theme.primaryMuted }]}>
+                <Ionicons name={tip.icon} size={20} color={theme.primary} />
+              </View>
+              <View style={styles.tipTextCol}>
+                <Text style={[styles.tipTitle, { color: theme.textPrimary }]}>
+                  {tip.title}
+                </Text>
+                <Text style={[styles.tipBody, { color: theme.textSecondary }]}>
+                  {tip.body}
+                </Text>
+              </View>
             </View>
-            <View style={styles.tipTextCol}>
-              <Text style={styles.tipTitle}>{tip.title}</Text>
-              <Text style={styles.tipBody}>{tip.body}</Text>
-            </View>
-          </View>
+          </AnimatedCard>
         ))}
 
-        <View style={{ height: 32 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
+      </View>
     </View>
   );
 }
@@ -97,132 +225,140 @@ export default function Discover() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.BACKGROUND,
   },
   header: {
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing['2xl'],
     paddingTop: 60,
-    paddingBottom: 16,
-    backgroundColor: Colors.WHITE,
+    paddingBottom: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.LIGHT_GRAY,
   },
   headerTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 30,
-    color: Colors.DARK,
+    ...typography.h1,
   },
   headerSub: {
-    fontFamily: 'outfit',
-    fontSize: 14,
-    color: Colors.GRAY,
+    ...typography.bodySmall,
     marginTop: 2,
   },
   scrollContent: {
-    padding: 20,
+    padding: spacing.xl,
   },
   ctaCard: {
-    backgroundColor: Colors.PRIMARY,
-    borderRadius: 20,
-    padding: 22,
+    borderRadius: radii.xl,
+    padding: spacing.xl + 2,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 28,
-    shadowColor: Colors.PRIMARY,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    marginBottom: spacing.xl,
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 16,
+      },
+      android: { elevation: 8 },
+    }),
   },
   ctaTextCol: {
     flex: 1,
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   ctaTitle: {
     fontFamily: 'outfit-bold',
-    fontSize: 18,
-    color: Colors.WHITE,
+    fontSize: 19,
+    color: '#FFF',
     marginBottom: 4,
   },
   ctaBody: {
     fontFamily: 'outfit',
     fontSize: 13,
     color: 'rgba(255,255,255,0.85)',
-    lineHeight: 18,
+    lineHeight: 19,
+  },
+  ctaArrow: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryRow: {
+    gap: spacing.sm + 2,
+    paddingBottom: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+    borderRadius: radii.full,
+    borderWidth: 1,
+  },
+  categoryLabel: {
+    fontFamily: 'outfit-medium',
+    fontSize: 13,
   },
   sectionTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 20,
-    color: Colors.DARK,
-    marginBottom: 14,
+    ...typography.h3,
+    marginBottom: spacing.md,
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 28,
+    gap: spacing.md,
+    marginBottom: spacing['2xl'],
   },
   destCard: {
-    width: '47%',
-    backgroundColor: Colors.WHITE,
-    borderRadius: 18,
-    padding: 16,
+    width: Platform.OS === 'web' ? '31%' : '100%',
+    minWidth: 280,
+    flexGrow: 1,
+    borderRadius: radii.xl,
+    padding: spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+  },
+  destEmojiBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
   },
   destEmoji: {
-    fontSize: 36,
-    marginBottom: 8,
+    fontSize: 28,
   },
   destName: {
+    ...typography.subtitle,
     fontFamily: 'outfit-bold',
-    fontSize: 15,
-    color: Colors.DARK,
   },
   destCountry: {
-    fontFamily: 'outfit',
-    fontSize: 12,
-    color: Colors.GRAY,
-    marginBottom: 8,
+    ...typography.caption,
+    marginBottom: spacing.sm,
   },
   destTag: {
-    backgroundColor: Colors.PRIMARY + '18',
-    paddingHorizontal: 10,
+    paddingHorizontal: spacing.sm + 2,
     paddingVertical: 3,
-    borderRadius: 20,
+    borderRadius: radii.full,
   },
   destTagText: {
     fontFamily: 'outfit-medium',
     fontSize: 11,
-    color: Colors.PRIMARY,
   },
   tipCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.WHITE,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.sm + 2,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     alignItems: 'flex-start',
-    gap: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    gap: spacing.md,
   },
   tipIconBox: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.PRIMARY + '15',
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
@@ -231,15 +367,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tipTitle: {
+    ...typography.label,
     fontFamily: 'outfit-bold',
-    fontSize: 14,
-    color: Colors.DARK,
     marginBottom: 3,
   },
   tipBody: {
-    fontFamily: 'outfit',
-    fontSize: 13,
-    color: Colors.GRAY,
-    lineHeight: 18,
+    ...typography.bodySmall,
   },
 });

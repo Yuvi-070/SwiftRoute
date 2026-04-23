@@ -1,12 +1,12 @@
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { View } from "react-native";
 import Login from "../components/Login";
-import { auth } from "../configs/FirebaseConfig";
-// import { Href } from 'expo-router';
-
+import Landing from "../components/Landing";
+import { auth } from "../configs/firebaseConfig";
 
 export default function Index() {
+  const [showLogin, setShowLogin] = useState(false);
 
   const user = auth.currentUser;
   const router = useRouter();
@@ -19,13 +19,10 @@ export default function Index() {
   }, [user, router]);
 
   return (
-    <View
-      style={{
-        flex: 1,
-      }}
-    >
-  {!user && <Login />}
+    <View style={{ flex: 1 }}>
+      {!user && (
+        showLogin ? <Login /> : <Landing onGetStarted={() => setShowLogin(true)} />
+      )}
     </View>
-    
   );
 }

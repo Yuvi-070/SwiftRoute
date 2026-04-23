@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import MapboxAutocomplete, { type MapboxPlace } from '../../components/MapboxAutocomplete';
 import { db } from '../../configs/firebaseConfig';
+import { useTheme } from '../../context/ThemeContext';
 import { Colors } from '../../constants/theme';
 import { generateItinerary, type TripDetails } from '../../services/aiService';
 import { saveTrip, saveWeather } from '../../services/storageService';
@@ -87,6 +88,7 @@ function addDays(d: Date, n: number): Date {
 export default function CreateTrip() {
   const navigation = useNavigation();
   const router = useRouter();
+  const { theme } = useTheme();
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -109,11 +111,11 @@ export default function CreateTrip() {
       headerShown: true,
       headerTransparent: false,
       headerTitle: '',
-      headerTintColor: Colors.DARK,
-      headerStyle: { backgroundColor: Colors.BACKGROUND },
+      headerTintColor: theme.textPrimary,
+      headerStyle: { backgroundColor: theme.background },
       headerShadowVisible: false,
     });
-  }, [navigation]);
+  }, [navigation, theme]);
 
   // Slide animation when step changes
   const animateStep = () => {
@@ -223,8 +225,8 @@ export default function CreateTrip() {
   const renderDestinationStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepEmoji}>🗺️</Text>
-      <Text style={styles.stepTitle}>Where do you want to go?</Text>
-      <Text style={styles.stepSubtitle}>Search for a city or country to start planning your adventure.</Text>
+      <Text style={[styles.stepTitle, { color: theme.textPrimary }]}>Where do you want to go?</Text>
+      <Text style={[styles.stepSubtitle, { color: theme.textSecondary }]}>Search for a city or country to start planning your adventure.</Text>
       <MapboxAutocomplete
         placeholder="Search destination…"
         onPlaceSelect={(place: MapboxPlace) => {
@@ -250,20 +252,20 @@ export default function CreateTrip() {
     return (
       <View style={styles.stepContent}>
         <Text style={styles.stepEmoji}>📅</Text>
-        <Text style={styles.stepTitle}>How long is your trip?</Text>
-        <Text style={styles.stepSubtitle}>Choose the number of days and when you want to start.</Text>
+        <Text style={[styles.stepTitle, { color: theme.textPrimary }]}>How long is your trip?</Text>
+        <Text style={[styles.stepSubtitle, { color: theme.textSecondary }]}>Choose the number of days and when you want to start.</Text>
 
         {/* Days selector */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Number of days</Text>
+        <View style={[styles.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
+          <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Number of days</Text>
           <View style={styles.counterRow}>
             <TouchableOpacity
               style={[styles.counterBtn, form.totalDays <= 1 && styles.counterBtnDisabled]}
               onPress={() => form.totalDays > 1 && updateForm({ totalDays: form.totalDays - 1 })}
             >
-              <Ionicons name="remove" size={22} color={form.totalDays <= 1 ? Colors.GRAY : Colors.WHITE} />
+              <Ionicons name="remove" size={22} color={form.totalDays <= 1 ? theme.textTertiary : '#FFF'} />
             </TouchableOpacity>
-            <Text style={styles.counterValue}>{form.totalDays}</Text>
+            <Text style={[styles.counterValue, { color: theme.textPrimary }]}>{form.totalDays}</Text>
             <TouchableOpacity
               style={[styles.counterBtn, form.totalDays >= 14 && styles.counterBtnDisabled]}
               onPress={() => form.totalDays < 14 && updateForm({ totalDays: form.totalDays + 1 })}
@@ -285,17 +287,17 @@ export default function CreateTrip() {
             >
               <Ionicons name="chevron-back" size={20} color={Colors.PRIMARY} />
             </TouchableOpacity>
-            <Text style={styles.dateValue}>{formatDate(form.startDate)}</Text>
+            <Text style={[styles.dateValue, { color: theme.textPrimary }]}>{formatDate(form.startDate)}</Text>
             <TouchableOpacity
               onPress={() =>
                 updateForm({ startDate: addDays(form.startDate, 1) })
               }
               style={styles.dateArrow}
             >
-              <Ionicons name="chevron-forward" size={20} color={Colors.PRIMARY} />
+              <Ionicons name="chevron-forward" size={20} color={theme.primary} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.dateSubText}>
+          <Text style={[styles.dateSubText, { color: theme.textSecondary }]}>
             Returns: {formatDate(endDate)} · {form.totalDays} {form.totalDays === 1 ? 'day' : 'days'}
           </Text>
         </View>
@@ -306,26 +308,26 @@ export default function CreateTrip() {
   const renderTravelersStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepEmoji}>👥</Text>
-      <Text style={styles.stepTitle}>Who{"'"}s travelling with you?</Text>
-      <Text style={styles.stepSubtitle}>The AI will tailor activities to your travel party.</Text>
+      <Text style={[styles.stepTitle, { color: theme.textPrimary }]}>Who{"'"}s travelling with you?</Text>
+      <Text style={[styles.stepSubtitle, { color: theme.textSecondary }]}>The AI will tailor activities to your travel party.</Text>
 
       {TRAVELER_OPTIONS.map((opt) => {
         const isSelected = form.travelers === opt.key;
         return (
           <TouchableOpacity
             key={opt.key}
-            style={[styles.optionCard, isSelected && styles.optionCardSelected]}
+            style={[styles.optionCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, isSelected && { borderColor: theme.primary, backgroundColor: theme.primary + '08' }]}
             onPress={() => {
               const count = opt.key === 'solo' ? 1 : opt.key === 'couple' ? 2 : form.travelersCount || 3;
               updateForm({ travelers: opt.key, travelersCount: count });
             }}
           >
-            <View style={[styles.optionIconBox, isSelected && styles.optionIconBoxSelected]}>
-              <Ionicons name={opt.icon as never} size={22} color={isSelected ? Colors.WHITE : Colors.PRIMARY} />
+            <View style={[styles.optionIconBox, { backgroundColor: theme.primary + '20' }, isSelected && { backgroundColor: theme.primary }]}>
+              <Ionicons name={opt.icon as never} size={22} color={isSelected ? '#FFF' : theme.primary} />
             </View>
             <View style={styles.optionTextBox}>
-              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{opt.label}</Text>
-              <Text style={styles.optionDesc}>{opt.desc}</Text>
+              <Text style={[styles.optionLabel, { color: theme.textPrimary }, isSelected && { color: theme.primary }]}>{opt.label}</Text>
+              <Text style={[styles.optionDesc, { color: theme.textSecondary }]}>{opt.desc}</Text>
             </View>
             {isSelected && <Ionicons name="checkmark-circle" size={22} color={Colors.PRIMARY} />}
           </TouchableOpacity>
@@ -334,21 +336,21 @@ export default function CreateTrip() {
 
       {/* Group size for family/friends */}
       {(form.travelers === 'family' || form.travelers === 'friends') && (
-        <View style={[styles.card, { marginTop: 12 }]}>
-          <Text style={styles.cardLabel}>Group size</Text>
+        <View style={[styles.card, { marginTop: 12, backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
+          <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Group size</Text>
           <View style={styles.counterRow}>
             <TouchableOpacity
               style={[styles.counterBtn, form.travelersCount <= 2 && styles.counterBtnDisabled]}
               onPress={() => form.travelersCount > 2 && updateForm({ travelersCount: form.travelersCount - 1 })}
             >
-              <Ionicons name="remove" size={22} color={form.travelersCount <= 2 ? Colors.GRAY : Colors.WHITE} />
+              <Ionicons name="remove" size={22} color={form.travelersCount <= 2 ? theme.textTertiary : '#FFF'} />
             </TouchableOpacity>
-            <Text style={styles.counterValue}>{form.travelersCount}</Text>
+            <Text style={[styles.counterValue, { color: theme.textPrimary }]}>{form.travelersCount}</Text>
             <TouchableOpacity
               style={[styles.counterBtn, form.travelersCount >= 20 && styles.counterBtnDisabled]}
               onPress={() => form.travelersCount < 20 && updateForm({ travelersCount: form.travelersCount + 1 })}
             >
-              <Ionicons name="add" size={22} color={form.travelersCount >= 20 ? Colors.GRAY : Colors.WHITE} />
+              <Ionicons name="add" size={22} color={form.travelersCount >= 20 ? theme.textTertiary : '#FFF'} />
             </TouchableOpacity>
           </View>
         </View>
@@ -359,23 +361,23 @@ export default function CreateTrip() {
   const renderBudgetStep = () => (
     <View style={styles.stepContent}>
       <Text style={styles.stepEmoji}>💰</Text>
-      <Text style={styles.stepTitle}>What{"'"}s your budget style?</Text>
-      <Text style={styles.stepSubtitle}>The AI will recommend restaurants, hotels, and activities accordingly.</Text>
+      <Text style={[styles.stepTitle, { color: theme.textPrimary }]}>What{"'"}s your budget style?</Text>
+      <Text style={[styles.stepSubtitle, { color: theme.textSecondary }]}>The AI will recommend restaurants, hotels, and activities accordingly.</Text>
 
       {BUDGET_OPTIONS.map((opt) => {
         const isSelected = form.budget === opt.key;
         return (
           <TouchableOpacity
             key={opt.key}
-            style={[styles.optionCard, isSelected && styles.optionCardSelected]}
+            style={[styles.optionCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }, isSelected && { borderColor: opt.color, backgroundColor: opt.color + '08' }]}
             onPress={() => updateForm({ budget: opt.key })}
           >
             <View style={[styles.optionIconBox, { backgroundColor: isSelected ? opt.color : opt.color + '20' }]}>
-              <Ionicons name={opt.icon as never} size={22} color={isSelected ? Colors.WHITE : opt.color} />
+              <Ionicons name={opt.icon as never} size={22} color={isSelected ? '#FFF' : opt.color} />
             </View>
             <View style={styles.optionTextBox}>
-              <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>{opt.label}</Text>
-              <Text style={styles.optionDesc}>{opt.desc}</Text>
+              <Text style={[styles.optionLabel, { color: theme.textPrimary }, isSelected && { color: opt.color }]}>{opt.label}</Text>
+              <Text style={[styles.optionDesc, { color: theme.textSecondary }]}>{opt.desc}</Text>
             </View>
             {isSelected && <Ionicons name="checkmark-circle" size={22} color={opt.color} />}
           </TouchableOpacity>
@@ -391,18 +393,20 @@ export default function CreateTrip() {
     return (
       <View style={styles.stepContent}>
         <Text style={styles.stepEmoji}>✨</Text>
-        <Text style={styles.stepTitle}>Your trip summary</Text>
-        <Text style={styles.stepSubtitle}>Everything looks good? Let the AI build your personalised itinerary!</Text>
+        <Text style={[styles.stepTitle, { color: theme.textPrimary }]}>Your trip summary</Text>
+        <Text style={[styles.stepSubtitle, { color: theme.textSecondary }]}>Everything looks good? Let the AI build your personalised itinerary!</Text>
 
-        <View style={styles.reviewCard}>
-          <ReviewRow icon="location" label="Destination" value={form.destination} />
+        <View style={[styles.reviewCard, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
+          <ReviewRow theme={theme} icon="location" label="Destination" value={form.destination} />
           <ReviewRow
+            theme={theme}
             icon="calendar"
             label="Dates"
             value={`${formatDate(form.startDate)} – ${formatDate(endDate)}`}
           />
-          <ReviewRow icon="time" label="Duration" value={`${form.totalDays} days`} />
+          <ReviewRow theme={theme} icon="time" label="Duration" value={`${form.totalDays} days`} />
           <ReviewRow
+            theme={theme}
             icon={travelerOption?.icon ?? 'people'}
             label="Travelers"
             value={
@@ -411,7 +415,7 @@ export default function CreateTrip() {
                 : `${travelerOption?.label} · ${form.travelersCount} people`
             }
           />
-          <ReviewRow icon={budgetOption?.icon ?? 'wallet'} label="Budget" value={budgetOption?.label ?? ''} last />
+          <ReviewRow theme={theme} icon={budgetOption?.icon ?? 'wallet'} label="Budget" value={budgetOption?.label ?? ''} last />
         </View>
 
         {error && (
@@ -435,22 +439,22 @@ export default function CreateTrip() {
   const isLastStep = step === TOTAL_STEPS - 1;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
       {/* Progress bar */}
-      <View style={styles.progressContainer}>
+      <View style={[styles.progressContainer, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
         {STEPS.map((label, i) => (
           <View key={label} style={styles.progressItem}>
-            <View style={[styles.progressDot, i <= step && styles.progressDotActive]}>
+            <View style={[styles.progressDot, { backgroundColor: theme.divider }, i <= step && { backgroundColor: theme.primary }]}>
               {i < step ? (
-                <Ionicons name="checkmark" size={12} color={Colors.WHITE} />
+                <Ionicons name="checkmark" size={12} color="#FFF" />
               ) : (
-                <Text style={[styles.progressDotText, i === step && styles.progressDotTextActive]}>
+                <Text style={[styles.progressDotText, { color: theme.textTertiary }, i === step && { color: '#FFF' }]}>
                   {i + 1}
                 </Text>
               )}
             </View>
             {i < TOTAL_STEPS - 1 && (
-              <View style={[styles.progressLine, i < step && styles.progressLineActive]} />
+              <View style={[styles.progressLine, { backgroundColor: theme.divider }, i < step && { backgroundColor: theme.primary }]} />
             )}
           </View>
         ))}
@@ -468,11 +472,11 @@ export default function CreateTrip() {
       </ScrollView>
 
       {/* Bottom buttons */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
         {step > 0 && (
           <TouchableOpacity style={styles.backBtn} onPress={goBack} disabled={loading}>
-            <Ionicons name="arrow-back" size={20} color={Colors.PRIMARY} />
-            <Text style={styles.backBtnText}>Back</Text>
+            <Ionicons name="arrow-back" size={20} color={theme.primary} />
+            <Text style={[styles.backBtnText, { color: theme.primary }]}>Back</Text>
           </TouchableOpacity>
         )}
 
@@ -499,10 +503,10 @@ export default function CreateTrip() {
       {/* AI loading overlay */}
       {loading && (
         <View style={styles.loadingOverlay}>
-          <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color={Colors.PRIMARY} />
-            <Text style={styles.loadingTitle}>Building your itinerary…</Text>
-            <Text style={styles.loadingSubtitle}>
+          <View style={[styles.loadingCard, { backgroundColor: theme.surfaceElevated }]}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={[styles.loadingTitle, { color: theme.textPrimary }]}>Building your itinerary…</Text>
+            <Text style={[styles.loadingSubtitle, { color: theme.textSecondary }]}>
               Our AI is crafting a personalised day-by-day plan just for you. This takes about 10 seconds.
             </Text>
           </View>
@@ -519,17 +523,19 @@ function ReviewRow({
   label,
   value,
   last,
+  theme,
 }: {
   icon: string;
   label: string;
   value: string;
   last?: boolean;
+  theme: any;
 }) {
   return (
-    <View style={[reviewStyles.row, !last && reviewStyles.rowBorder]}>
-      <Ionicons name={icon as never} size={18} color={Colors.PRIMARY} style={{ marginRight: 10 }} />
-      <Text style={reviewStyles.label}>{label}</Text>
-      <Text style={reviewStyles.value} numberOfLines={2}>
+    <View style={[reviewStyles.row, !last && { borderBottomWidth: 1, borderBottomColor: theme.divider }]}>
+      <Ionicons name={icon as never} size={18} color={theme.primary} style={{ marginRight: 10 }} />
+      <Text style={[reviewStyles.label, { color: theme.textSecondary }]}>{label}</Text>
+      <Text style={[reviewStyles.value, { color: theme.textPrimary }]} numberOfLines={2}>
         {value}
       </Text>
     </View>

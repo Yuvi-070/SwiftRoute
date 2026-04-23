@@ -12,13 +12,16 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Colors } from '../../constants/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { radii, spacing, typography } from '../../constants/theme';
 import {
   loadExpenseData,
   saveExpenseData,
   type Expense,
   type ExpenseData,
 } from '../../services/storageService';
+import AnimatedCard from '../../components/ui/AnimatedCard';
+import AnimatedCounter from '../../components/ui/AnimatedCounter';
 
 const EXPENSE_CATEGORIES = [
   'Food & Drink',
@@ -40,23 +43,19 @@ const CATEGORY_ICONS: Record<string, string> = {
   'Other': 'ellipsis-horizontal-outline',
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
 export default function ExpenseTrackerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const router = useRouter();
+  const { theme, isDark } = useTheme();
 
   const [data, setData] = useState<ExpenseData>({ totalBudget: 0, expenses: [] });
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBudgetForm, setShowBudgetForm] = useState(false);
 
-  // Add-expense form state
   const [newLabel, setNewLabel] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newCategory, setNewCategory] = useState(EXPENSE_CATEGORIES[0]);
-
-  // Budget form state
   const [budgetInput, setBudgetInput] = useState('');
 
   useEffect(() => {
@@ -102,7 +101,6 @@ export default function ExpenseTrackerScreen() {
       Alert.alert('Invalid amount', 'Please enter a valid positive amount.');
       return;
     }
-
     const expense: Expense = {
       id: `exp_${Date.now()}`,
       label: newLabel.trim(),
@@ -110,13 +108,11 @@ export default function ExpenseTrackerScreen() {
       category: newCategory,
       date: new Date().toISOString(),
     };
-
     const updated: ExpenseData = {
       ...data,
       expenses: [expense, ...data.expenses],
     };
     await persist(updated);
-
     setNewLabel('');
     setNewAmount('');
     setNewCategory(EXPENSE_CATEGORIES[0]);
@@ -124,7 +120,7 @@ export default function ExpenseTrackerScreen() {
   };
 
   const handleDeleteExpense = (expenseId: string) => {
-    Alert.alert('Delete expense', 'Are you sure you want to remove this expense?', [
+    Alert.alert('Delete expense', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -143,206 +139,251 @@ export default function ExpenseTrackerScreen() {
   const spentPercent =
     data.totalBudget > 0 ? Math.min((totalSpent / data.totalBudget) * 100, 100) : 0;
   const progressColor =
-    spentPercent > 90 ? Colors.ERROR : spentPercent > 70 ? Colors.SECONDARY : Colors.SUCCESS;
+    spentPercent > 90 ? theme.error : spentPercent > 70 ? theme.secondary : theme.success;
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
-      <View style={styles.hero}>
+      <View style={[styles.hero, { backgroundColor: theme.primary }]}>
+        <View
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.accent, opacity: 0.35 }]}
+        />
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={Colors.WHITE} />
+          <Ionicons name="arrow-back" size={22} color="#FFF" />
         </TouchableOpacity>
         <Text style={styles.heroTitle}>💰 Expense Tracker</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Budget overview card */}
-        <View style={styles.budgetCard}>
-          <View style={styles.budgetRow}>
-            <View>
-              <Text style={styles.budgetLabel}>Total Budget</Text>
-              <Text style={styles.budgetValue}>
-                {data.totalBudget > 0 ? `$${data.totalBudget.toFixed(2)}` : 'Not set'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.editBudgetBtn}
-              onPress={() => {
-                setBudgetInput(data.totalBudget > 0 ? String(data.totalBudget) : '');
-                setShowBudgetForm(true);
-              }}
-            >
-              <Ionicons name="pencil-outline" size={16} color={Colors.PRIMARY} />
-              <Text style={styles.editBudgetText}>Set Budget</Text>
-            </TouchableOpacity>
-          </View>
-
-          {data.totalBudget > 0 && (
-            <>
-              <View style={styles.progressBg}>
-                <View
-                  style={[styles.progressFill, { width: `${spentPercent}%`, backgroundColor: progressColor }]}
-                />
+        {/* Budget card */}
+        <AnimatedCard delay={0}>
+          <View
+            style={[
+              styles.budgetCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                ...Platform.select({
+                  ios: { shadowColor: theme.shadowColor, shadowOffset: { width: 0, height: 3 }, shadowOpacity: theme.shadowOpacity, shadowRadius: 10 },
+                  android: { elevation: 2 },
+                }),
+              },
+            ]}
+          >
+            <View style={styles.budgetRow}>
+              <View>
+                <Text style={[styles.budgetLabel, { color: theme.textSecondary }]}>Total Budget</Text>
+                <Text style={[styles.budgetValue, { color: theme.textPrimary }]}>
+                  {data.totalBudget > 0 ? `$${data.totalBudget.toFixed(2)}` : 'Not set'}
+                </Text>
               </View>
-
-              <View style={styles.budgetStatsRow}>
-                <View style={styles.budgetStat}>
-                  <Text style={styles.budgetStatLabel}>Spent</Text>
-                  <Text style={[styles.budgetStatValue, { color: Colors.ERROR }]}>
-                    ${totalSpent.toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.budgetStatDivider} />
-                <View style={styles.budgetStat}>
-                  <Text style={styles.budgetStatLabel}>Remaining</Text>
-                  <Text
-                    style={[
-                      styles.budgetStatValue,
-                      { color: remaining >= 0 ? Colors.SUCCESS : Colors.ERROR },
-                    ]}
-                  >
-                    {remaining >= 0 ? '$' : '-$'}
-                    {Math.abs(remaining).toFixed(2)}
-                  </Text>
-                </View>
-                <View style={styles.budgetStatDivider} />
-                <View style={styles.budgetStat}>
-                  <Text style={styles.budgetStatLabel}>Used</Text>
-                  <Text style={[styles.budgetStatValue, { color: progressColor }]}>
-                    {Math.round(spentPercent)}%
-                  </Text>
-                </View>
-              </View>
-            </>
-          )}
-        </View>
-
-        {/* Set budget form */}
-        {showBudgetForm && (
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Set Total Budget</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter total budget (e.g. 1500)"
-              placeholderTextColor={Colors.GRAY}
-              keyboardType="numeric"
-              value={budgetInput}
-              onChangeText={setBudgetInput}
-            />
-            <View style={styles.formBtns}>
               <TouchableOpacity
-                style={[styles.formBtn, styles.formBtnSecondary]}
-                onPress={() => setShowBudgetForm(false)}
+                style={[styles.editBudgetBtn, { backgroundColor: theme.primaryMuted }]}
+                onPress={() => {
+                  setBudgetInput(data.totalBudget > 0 ? String(data.totalBudget) : '');
+                  setShowBudgetForm(true);
+                }}
               >
-                <Text style={styles.formBtnSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.formBtn, styles.formBtnPrimary]} onPress={handleSetBudget}>
-                <Text style={styles.formBtnText}>Save</Text>
+                <Ionicons name="pencil-outline" size={16} color={theme.primary} />
+                <Text style={[styles.editBudgetText, { color: theme.primary }]}>Set Budget</Text>
               </TouchableOpacity>
             </View>
+
+            {data.totalBudget > 0 && (
+              <>
+                <View style={[styles.progressBg, { backgroundColor: theme.divider }]}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${spentPercent}%`, backgroundColor: progressColor },
+                    ]}
+                  />
+                </View>
+                <View style={styles.budgetStatsRow}>
+                  <View style={styles.budgetStat}>
+                    <Text style={[styles.budgetStatLabel, { color: theme.textTertiary }]}>Spent</Text>
+                    <Text style={[styles.budgetStatValue, { color: theme.error }]}>
+                      ${totalSpent.toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.budgetStatDivider, { backgroundColor: theme.divider }]} />
+                  <View style={styles.budgetStat}>
+                    <Text style={[styles.budgetStatLabel, { color: theme.textTertiary }]}>Remaining</Text>
+                    <Text
+                      style={[
+                        styles.budgetStatValue,
+                        { color: remaining >= 0 ? theme.success : theme.error },
+                      ]}
+                    >
+                      {remaining >= 0 ? '$' : '-$'}
+                      {Math.abs(remaining).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.budgetStatDivider, { backgroundColor: theme.divider }]} />
+                  <View style={styles.budgetStat}>
+                    <Text style={[styles.budgetStatLabel, { color: theme.textTertiary }]}>Used</Text>
+                    <Text style={[styles.budgetStatValue, { color: progressColor }]}>
+                      {Math.round(spentPercent)}%
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
+        </AnimatedCard>
+
+        {/* Budget form */}
+        {showBudgetForm && (
+          <AnimatedCard delay={0}>
+            <View style={[styles.formCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Set Total Budget</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.surfaceElevated, color: theme.textPrimary, borderColor: theme.border }]}
+                placeholder="Enter total budget (e.g. 1500)"
+                placeholderTextColor={theme.textTertiary}
+                keyboardType="numeric"
+                value={budgetInput}
+                onChangeText={setBudgetInput}
+              />
+              <View style={styles.formBtns}>
+                <TouchableOpacity
+                  style={[styles.formBtn, { backgroundColor: theme.surfacePressed }]}
+                  onPress={() => setShowBudgetForm(false)}
+                >
+                  <Text style={[styles.formBtnSecondaryText, { color: theme.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.formBtn, { backgroundColor: theme.primary }]}
+                  onPress={handleSetBudget}
+                >
+                  <Text style={styles.formBtnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </AnimatedCard>
         )}
 
         {/* Add expense form */}
         {showAddForm && (
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Add Expense</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Description (e.g. Dinner at local restaurant)"
-              placeholderTextColor={Colors.GRAY}
-              value={newLabel}
-              onChangeText={setNewLabel}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Amount (e.g. 25.50)"
-              placeholderTextColor={Colors.GRAY}
-              keyboardType="numeric"
-              value={newAmount}
-              onChangeText={setNewAmount}
-            />
-            <Text style={styles.formFieldLabel}>Category</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-              {EXPENSE_CATEGORIES.map((cat) => (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.categoryChip, newCategory === cat && styles.categoryChipActive]}
-                  onPress={() => setNewCategory(cat)}
-                >
-                  <Ionicons
-                    name={CATEGORY_ICONS[cat] as never}
-                    size={14}
-                    color={newCategory === cat ? Colors.WHITE : Colors.GRAY}
-                  />
-                  <Text
-                    style={[styles.categoryChipText, newCategory === cat && styles.categoryChipTextActive]}
+          <AnimatedCard delay={0}>
+            <View style={[styles.formCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.formTitle, { color: theme.textPrimary }]}>Add Expense</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.surfaceElevated, color: theme.textPrimary, borderColor: theme.border }]}
+                placeholder="Description (e.g. Dinner)"
+                placeholderTextColor={theme.textTertiary}
+                value={newLabel}
+                onChangeText={setNewLabel}
+              />
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.surfaceElevated, color: theme.textPrimary, borderColor: theme.border }]}
+                placeholder="Amount (e.g. 25.50)"
+                placeholderTextColor={theme.textTertiary}
+                keyboardType="numeric"
+                value={newAmount}
+                onChangeText={setNewAmount}
+              />
+              <Text style={[styles.formFieldLabel, { color: theme.textSecondary }]}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
+                {EXPENSE_CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        borderColor: theme.border,
+                        backgroundColor: newCategory === cat ? theme.primary : theme.surface,
+                      },
+                    ]}
+                    onPress={() => setNewCategory(cat)}
                   >
-                    {cat}
-                  </Text>
+                    <Ionicons
+                      name={CATEGORY_ICONS[cat] as never}
+                      size={14}
+                      color={newCategory === cat ? '#FFF' : theme.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        { color: newCategory === cat ? '#FFF' : theme.textSecondary },
+                      ]}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={styles.formBtns}>
+                <TouchableOpacity
+                  style={[styles.formBtn, { backgroundColor: theme.surfacePressed }]}
+                  onPress={() => setShowAddForm(false)}
+                >
+                  <Text style={[styles.formBtnSecondaryText, { color: theme.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={styles.formBtns}>
-              <TouchableOpacity
-                style={[styles.formBtn, styles.formBtnSecondary]}
-                onPress={() => setShowAddForm(false)}
-              >
-                <Text style={styles.formBtnSecondaryText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.formBtn, styles.formBtnPrimary]} onPress={handleAddExpense}>
-                <Text style={styles.formBtnText}>Add</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.formBtn, { backgroundColor: theme.primary }]}
+                  onPress={handleAddExpense}
+                >
+                  <Text style={styles.formBtnText}>Add</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </AnimatedCard>
         )}
 
         {/* Expenses list */}
         <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>Expenses ({data.expenses.length})</Text>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+            Expenses ({data.expenses.length})
+          </Text>
           <TouchableOpacity
-            style={styles.addBtn}
-            onPress={() => {
-              setShowAddForm(true);
-              setShowBudgetForm(false);
-            }}
+            style={[styles.addBtn, { backgroundColor: theme.primary }]}
+            onPress={() => { setShowAddForm(true); setShowBudgetForm(false); }}
           >
-            <Ionicons name="add" size={20} color={Colors.WHITE} />
+            <Ionicons name="add" size={20} color="#FFF" />
             <Text style={styles.addBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
 
         {data.expenses.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="receipt-outline" size={48} color={Colors.GRAY} />
-            <Text style={styles.emptyStateText}>No expenses yet.</Text>
-            <Text style={styles.emptyStateSubtext}>Tap &quot;Add&quot; to log your first expense.</Text>
+            <Ionicons name="receipt-outline" size={48} color={theme.textTertiary} />
+            <Text style={[styles.emptyStateText, { color: theme.textPrimary }]}>No expenses yet.</Text>
+            <Text style={[styles.emptyStateSubtext, { color: theme.textSecondary }]}>
+              Tap "Add" to log your first expense.
+            </Text>
           </View>
         ) : (
-          data.expenses.map((expense) => (
-            <View key={expense.id} style={styles.expenseRow}>
-              <View style={styles.expenseIcon}>
-                <Ionicons
-                  name={CATEGORY_ICONS[expense.category] as never ?? 'ellipsis-horizontal-outline'}
-                  size={20}
-                  color={Colors.PRIMARY}
-                />
-              </View>
-              <View style={styles.expenseBody}>
-                <Text style={styles.expenseLabel}>{expense.label}</Text>
-                <Text style={styles.expenseCategory}>{expense.category}</Text>
-              </View>
-              <Text style={styles.expenseAmount}>${expense.amount.toFixed(2)}</Text>
-              <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => handleDeleteExpense(expense.id)}
+          data.expenses.map((expense, i) => (
+            <AnimatedCard key={expense.id} delay={i * 50}>
+              <View
+                style={[
+                  styles.expenseRow,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
               >
-                <Ionicons name="trash-outline" size={18} color={Colors.ERROR} />
-              </TouchableOpacity>
-            </View>
+                <View style={[styles.expenseIcon, { backgroundColor: theme.primaryMuted }]}>
+                  <Ionicons
+                    name={(CATEGORY_ICONS[expense.category] ?? 'ellipsis-horizontal-outline') as never}
+                    size={20}
+                    color={theme.primary}
+                  />
+                </View>
+                <View style={styles.expenseBody}>
+                  <Text style={[styles.expenseLabel, { color: theme.textPrimary }]}>{expense.label}</Text>
+                  <Text style={[styles.expenseCategory, { color: theme.textTertiary }]}>{expense.category}</Text>
+                </View>
+                <Text style={[styles.expenseAmount, { color: theme.textPrimary }]}>
+                  ${expense.amount.toFixed(2)}
+                </Text>
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeleteExpense(expense.id)}>
+                  <Ionicons name="trash-outline" size={18} color={theme.error} />
+                </TouchableOpacity>
+              </View>
+            </AnimatedCard>
           ))
         )}
 
@@ -353,287 +394,97 @@ export default function ExpenseTrackerScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: Colors.BACKGROUND,
-  },
+  root: { flex: 1 },
   hero: {
-    backgroundColor: Colors.PRIMARY,
     paddingTop: 56,
-    paddingBottom: 20,
-    paddingHorizontal: 24,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing['2xl'],
+    overflow: 'hidden',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center', alignItems: 'center',
+    marginBottom: spacing.md,
   },
   heroTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 26,
-    color: Colors.WHITE,
+    fontFamily: 'outfit-bold', fontSize: 26, color: '#FFF',
   },
-  scrollContent: {
-    padding: 20,
-  },
+  scrollContent: { padding: spacing.xl },
   budgetCard: {
-    backgroundColor: Colors.WHITE,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    borderRadius: radii.lg, padding: spacing.lg + 2,
+    marginBottom: spacing.lg, borderWidth: 1,
   },
   budgetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 14,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'flex-start', marginBottom: spacing.md,
   },
-  budgetLabel: {
-    fontFamily: 'outfit',
-    fontSize: 13,
-    color: Colors.GRAY,
-    marginBottom: 2,
-  },
-  budgetValue: {
-    fontFamily: 'outfit-bold',
-    fontSize: 26,
-    color: Colors.DARK,
-  },
+  budgetLabel: { ...typography.bodySmall, marginBottom: 2 },
+  budgetValue: { ...typography.h1 },
   editBudgetBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.PRIMARY + '15',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: spacing.md, paddingVertical: 7, borderRadius: radii.sm + 2,
   },
-  editBudgetText: {
-    fontFamily: 'outfit-medium',
-    fontSize: 13,
-    color: Colors.PRIMARY,
-  },
+  editBudgetText: { fontFamily: 'outfit-medium', fontSize: 13 },
   progressBg: {
-    height: 8,
-    backgroundColor: Colors.LIGHT_GRAY,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 14,
+    height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: spacing.md,
   },
-  progressFill: {
-    height: 8,
-    borderRadius: 4,
-  },
-  budgetStatsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  budgetStat: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  budgetStatLabel: {
-    fontFamily: 'outfit',
-    fontSize: 12,
-    color: Colors.GRAY,
-    marginBottom: 2,
-  },
-  budgetStatValue: {
-    fontFamily: 'outfit-bold',
-    fontSize: 16,
-  },
-  budgetStatDivider: {
-    width: 1,
-    backgroundColor: Colors.LIGHT_GRAY,
-    alignSelf: 'stretch',
-  },
+  progressFill: { height: 8, borderRadius: 4 },
+  budgetStatsRow: { flexDirection: 'row', justifyContent: 'space-around' },
+  budgetStat: { alignItems: 'center', flex: 1 },
+  budgetStatLabel: { ...typography.caption, marginBottom: 2 },
+  budgetStatValue: { fontFamily: 'outfit-bold', fontSize: 16 },
+  budgetStatDivider: { width: 1, alignSelf: 'stretch' },
   formCard: {
-    backgroundColor: Colors.WHITE,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    borderRadius: radii.lg, padding: spacing.lg + 2,
+    marginBottom: spacing.lg, borderWidth: 1,
   },
-  formTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 16,
-    color: Colors.DARK,
-    marginBottom: 12,
-  },
-  formFieldLabel: {
-    fontFamily: 'outfit-medium',
-    fontSize: 13,
-    color: Colors.GRAY,
-    marginBottom: 8,
-    marginTop: 4,
-  },
+  formTitle: { ...typography.subtitle, fontFamily: 'outfit-bold', marginBottom: spacing.md },
+  formFieldLabel: { ...typography.bodySmall, fontFamily: 'outfit-medium', marginBottom: spacing.sm, marginTop: 4 },
   input: {
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontFamily: 'outfit',
-    fontSize: 14,
-    color: Colors.DARK,
-    backgroundColor: Colors.BACKGROUND,
-    marginBottom: 12,
+    borderWidth: 1, borderRadius: radii.sm + 2,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2,
+    ...typography.body, marginBottom: spacing.md,
   },
-  categoryScroll: {
-    marginBottom: 14,
-  },
+  categoryScroll: { marginBottom: spacing.md },
   categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
-    backgroundColor: Colors.WHITE,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderRadius: radii.full,
+    paddingHorizontal: spacing.md, paddingVertical: 6, marginRight: spacing.sm,
   },
-  categoryChipActive: {
-    backgroundColor: Colors.PRIMARY,
-    borderColor: Colors.PRIMARY,
-  },
-  categoryChipText: {
-    fontFamily: 'outfit',
-    fontSize: 13,
-    color: Colors.GRAY,
-  },
-  categoryChipTextActive: {
-    color: Colors.WHITE,
-  },
-  formBtns: {
-    flexDirection: 'row',
-    gap: 10,
-  },
+  categoryChipText: { fontFamily: 'outfit', fontSize: 13 },
+  formBtns: { flexDirection: 'row', gap: spacing.sm + 2 },
   formBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
+    flex: 1, paddingVertical: spacing.md, borderRadius: radii.sm + 2, alignItems: 'center',
   },
-  formBtnPrimary: {
-    backgroundColor: Colors.PRIMARY,
-  },
-  formBtnSecondary: {
-    backgroundColor: Colors.LIGHT_GRAY,
-  },
-  formBtnText: {
-    fontFamily: 'outfit-bold',
-    fontSize: 14,
-    color: Colors.WHITE,
-  },
-  formBtnSecondaryText: {
-    fontFamily: 'outfit-bold',
-    fontSize: 14,
-    color: Colors.GRAY,
-  },
+  formBtnText: { ...typography.buttonSmall, color: '#FFF' },
+  formBtnSecondaryText: { ...typography.buttonSmall },
   listHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: spacing.md,
   },
-  sectionTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 18,
-    color: Colors.DARK,
-  },
+  sectionTitle: { ...typography.h3 },
   addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.PRIMARY,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderRadius: radii.sm + 2,
   },
-  addBtnText: {
-    fontFamily: 'outfit-bold',
-    fontSize: 13,
-    color: Colors.WHITE,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyStateText: {
-    fontFamily: 'outfit-bold',
-    fontSize: 16,
-    color: Colors.DARK,
-  },
-  emptyStateSubtext: {
-    fontFamily: 'outfit',
-    fontSize: 14,
-    color: Colors.GRAY,
-    textAlign: 'center',
-  },
+  addBtnText: { ...typography.buttonSmall, color: '#FFF', fontSize: 13 },
+  emptyState: { alignItems: 'center', paddingVertical: spacing['5xl'], gap: spacing.sm },
+  emptyStateText: { ...typography.subtitle, fontFamily: 'outfit-bold' },
+  emptyStateSubtext: { ...typography.body, textAlign: 'center' },
   expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.WHITE,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-    gap: 12,
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: radii.md + 2, padding: spacing.md,
+    marginBottom: spacing.sm + 2, borderWidth: 1, gap: spacing.md,
   },
   expenseIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.PRIMARY + '15',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 40, height: 40, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
   },
-  expenseBody: {
-    flex: 1,
-    gap: 2,
-  },
-  expenseLabel: {
-    fontFamily: 'outfit-medium',
-    fontSize: 14,
-    color: Colors.DARK,
-  },
-  expenseCategory: {
-    fontFamily: 'outfit',
-    fontSize: 12,
-    color: Colors.GRAY,
-  },
-  expenseAmount: {
-    fontFamily: 'outfit-bold',
-    fontSize: 15,
-    color: Colors.DARK,
-  },
-  deleteBtn: {
-    padding: 4,
-  },
+  expenseBody: { flex: 1, gap: 2 },
+  expenseLabel: { ...typography.label },
+  expenseCategory: { ...typography.caption },
+  expenseAmount: { fontFamily: 'outfit-bold', fontSize: 15 },
+  deleteBtn: { padding: 4 },
 });

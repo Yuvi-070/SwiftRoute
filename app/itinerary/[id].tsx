@@ -1,24 +1,31 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  TextInput,
 } from 'react-native';
 import { db } from '../../configs/firebaseConfig';
-import { Colors } from '../../constants/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { radii, spacing, typography } from '../../constants/theme';
 import type { DayItinerary, GeneratedItinerary } from '../../services/aiService';
-import { loadTrip } from '../../services/storageService';
+import { loadTrip, saveTrip } from '../../services/storageService';
+import { exportToPdf, generateShareText } from '../../services/exportService';
+import { Share, Alert } from 'react-native';
+import AnimatedCard from '../../components/ui/AnimatedCard';
+import PressableScale from '../../components/ui/PressableScale';
 
 const TIME_COLORS: Record<string, string> = {
-  Morning: '#F5A623',
-  Afternoon: Colors.PRIMARY,
-  Evening: '#6366F1',
+  Morning: '#F59E0B',
+  Afternoon: '#6366F1',
+  Evening: '#8B5CF6',
 };
 
 const TIME_ICONS: Record<string, string> = {
@@ -31,23 +38,64 @@ export default function ItineraryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const navigation = useNavigation();
   const router = useRouter();
+  const { theme, isDark } = useTheme();
 
   const [itinerary, setItinerary] = useState<GeneratedItinerary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedDay, setExpandedDay] = useState<number>(1);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const deleteTrip = async () => {
+    try {
+      if (!id.startsWith('local_')) {
+        const { deleteDoc } = await import('firebase/firestore');
+        await deleteDoc(doc(db, 'trips', id));
+      }
+      const { deleteTrip: deleteLocal } = await import('../../services/storageService');
+      await deleteLocal(id);
+      router.replace('/(tabs)/mytrip' as never);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to delete trip.');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!itinerary) return;
+    setSaving(true);
+    try {
+      if (id.startsWith('local_')) {
+        const local = await loadTrip(id);
+        if (local) {
+          await saveTrip({ ...local, itinerary });
+        }
+      } else {
+        const docRef = doc(db, 'trips', id);
+        await updateDoc(docRef, { itinerary });
+        const local = await loadTrip(id);
+        if (local) {
+          await saveTrip({ ...local, itinerary });
+        }
+      }
+      setIsEditing(false);
+      Alert.alert('Success', 'Itinerary updated!');
+    } catch (err) {
+      console.error(err);
+      Alert.alert('Error', 'Failed to save changes.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
+    navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
   useEffect(() => {
     if (!id) return;
     (async () => {
       try {
-        // Try Firestore first
         const docRef = doc(db, 'trips', id);
         const snap = await getDoc(docRef);
         if (snap.exists()) {
@@ -57,10 +105,9 @@ export default function ItineraryScreen() {
           return;
         }
       } catch {
-        // Firestore unavailable – fall through to local storage
+        // Firestore unavailable
       }
 
-      // Fall back to local storage (offline mode)
       try {
         const local = await loadTrip(id);
         if (local) {
@@ -79,20 +126,29 @@ export default function ItineraryScreen() {
 
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={Colors.PRIMARY} />
-        <Text style={styles.loadingText}>Loading your trip…</Text>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.primary} />
+        <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+          Loading your trip…
+        </Text>
       </View>
     );
   }
 
   if (error || !itinerary) {
     return (
-      <View style={styles.centered}>
-        <Ionicons name="alert-circle-outline" size={48} color={Colors.ERROR} />
-        <Text style={styles.errorTitle}>Something went wrong</Text>
-        <Text style={styles.errorMsg}>{error ?? 'Unknown error'}</Text>
-        <TouchableOpacity style={styles.retryBtn} onPress={() => router.back()}>
+      <View style={[styles.centered, { backgroundColor: theme.background }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={theme.error} />
+        <Text style={[styles.errorTitle, { color: theme.textPrimary }]}>
+          Something went wrong
+        </Text>
+        <Text style={[styles.errorMsg, { color: theme.textSecondary }]}>
+          {error ?? 'Unknown error'}
+        </Text>
+        <TouchableOpacity
+          style={[styles.retryBtn, { backgroundColor: theme.primary }]}
+          onPress={() => router.back()}
+        >
           <Text style={styles.retryBtnText}>Go back</Text>
         </TouchableOpacity>
       </View>
@@ -100,47 +156,154 @@ export default function ItineraryScreen() {
   }
 
   return (
-    <View style={styles.root}>
-      {/* Hero header */}
-      <View style={styles.hero}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/(tabs)/mytrip' as never)}>
-          <Ionicons name="arrow-back" size={22} color={Colors.WHITE} />
-        </TouchableOpacity>
-        <Text style={styles.heroTitle} numberOfLines={2}>
-          {itinerary.tripTitle}
-        </Text>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
+      {/* Hero header with gradient */}
+      <View style={[styles.hero, { backgroundColor: theme.primary }]}>
+        <View
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: theme.accent, opacity: 0.35 },
+          ]}
+        />
+        <View style={styles.heroHeaderRow}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.replace('/(tabs)/mytrip' as never)}
+          >
+            <Ionicons name="arrow-back" size={22} color="#FFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteBtn}
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                if (window.confirm("Are you sure you want to delete this trip?")) {
+                  deleteTrip();
+                }
+              } else {
+                Alert.alert("Delete Trip", "Are you sure you want to delete this trip?", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Delete", style: "destructive", onPress: deleteTrip }
+                ]);
+              }
+            }}
+          >
+            <Ionicons name="trash-outline" size={20} color="#FFF" />
+          </TouchableOpacity>
+        </View>
+
+        {isEditing ? (
+          <TextInput
+            style={[styles.heroTitle, { borderBottomWidth: 1, borderBottomColor: '#FFF', paddingBottom: 2 }]}
+            value={itinerary.tripTitle}
+            onChangeText={(t) => setItinerary({ ...itinerary, tripTitle: t })}
+            placeholderTextColor="#CCC"
+          />
+        ) : (
+          <Text style={styles.heroTitle} numberOfLines={2}>
+            {itinerary.tripTitle}
+          </Text>
+        )}
         <View style={styles.heroBadgeRow}>
           <View style={styles.heroBadge}>
-            <Ionicons name="location" size={13} color={Colors.WHITE} />
+            <Ionicons name="location" size={13} color="#FFF" />
             <Text style={styles.heroBadgeText}>{itinerary.destination}</Text>
           </View>
           <View style={styles.heroBadge}>
-            <Ionicons name="time-outline" size={13} color={Colors.WHITE} />
+            <Ionicons name="time-outline" size={13} color="#FFF" />
             <Text style={styles.heroBadgeText}>{itinerary.duration} days</Text>
           </View>
           <View style={styles.heroBadge}>
-            <Ionicons name="cash-outline" size={13} color={Colors.WHITE} />
+            <Ionicons name="cash-outline" size={13} color="#FFF" />
             <Text style={styles.heroBadgeText}>{itinerary.estimatedTotalCost}</Text>
           </View>
         </View>
 
         {/* Quick-action buttons */}
-        <View style={styles.heroActions}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.heroActionsScroll}
+          contentContainerStyle={styles.heroActions}
+        >
+          {isEditing ? (
+             <TouchableOpacity style={styles.heroActionBtn} onPress={handleSave} disabled={saving}>
+               <Ionicons name="save-outline" size={16} color={theme.success} />
+               <Text style={[styles.heroActionText, { color: theme.success }]}>{saving ? 'Saving...' : 'Save'}</Text>
+             </TouchableOpacity>
+          ) : (
+             <TouchableOpacity style={styles.heroActionBtn} onPress={() => setIsEditing(true)}>
+               <Ionicons name="create-outline" size={16} color={theme.primary} />
+               <Text style={[styles.heroActionText, { color: theme.primary }]}>Edit</Text>
+             </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => router.push(`/chat/${id}` as never)}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Ask AI</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.heroActionBtn}
             onPress={() => router.push(`/packing-list/${id}` as never)}
           >
-            <Ionicons name="bag-outline" size={16} color={Colors.PRIMARY} />
-            <Text style={styles.heroActionText}>Packing List</Text>
+            <Ionicons name="bag-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Packing</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => router.push(`/journal/${id}` as never)}
+          >
+            <Ionicons name="book-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Journal</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.heroActionBtn}
             onPress={() => router.push(`/expense-tracker/${id}` as never)}
           >
-            <Ionicons name="wallet-outline" size={16} color={Colors.PRIMARY} />
-            <Text style={styles.heroActionText}>Expenses</Text>
+            <Ionicons name="wallet-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Expenses</Text>
           </TouchableOpacity>
-        </View>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => router.push('/currency' as never)}
+          >
+            <Ionicons name="swap-horizontal-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Currency</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => router.push(`/weather/${id}` as never)}
+          >
+            <Ionicons name="cloudy-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Weather</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={async () => {
+              try {
+                const text = generateShareText(itinerary);
+                await Share.share({ message: text, title: itinerary.tripTitle });
+              } catch {}
+            }}
+          >
+            <Ionicons name="share-social-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={async () => {
+              try {
+                await exportToPdf(itinerary);
+              } catch (err) {
+                Alert.alert('Export failed', err instanceof Error ? err.message : 'Unknown error');
+              }
+            }}
+          >
+            <Ionicons name="document-outline" size={16} color={theme.primary} />
+            <Text style={[styles.heroActionText, { color: theme.primary }]}>PDF</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -149,48 +312,138 @@ export default function ItineraryScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryText}>{itinerary.summary}</Text>
-        </View>
+        <AnimatedCard delay={0}>
+          <View
+            style={[
+              styles.summaryCard,
+              {
+                backgroundColor: theme.surface,
+                borderColor: theme.border,
+                ...Platform.select({
+                  ios: {
+                    shadowColor: theme.shadowColor,
+                    shadowOffset: { width: 0, height: 3 },
+                    shadowOpacity: theme.shadowOpacity,
+                    shadowRadius: 8,
+                  },
+                  android: { elevation: 2 },
+                }),
+              },
+            ]}
+          >
+            {isEditing ? (
+              <TextInput
+                style={[styles.summaryText, { color: theme.textPrimary }]}
+                value={itinerary.summary}
+                onChangeText={(t) => setItinerary({ ...itinerary, summary: t })}
+                multiline
+              />
+            ) : (
+              <Text style={[styles.summaryText, { color: theme.textPrimary }]}>
+                {itinerary.summary}
+              </Text>
+            )}
+          </View>
+        </AnimatedCard>
 
         {/* Day-by-day */}
-        <Text style={styles.sectionTitle}>📅 Day-by-Day Itinerary</Text>
-        {itinerary.itinerary.map((day: DayItinerary) => (
-          <DayCard
-            key={day.day}
-            day={day}
-            expanded={expandedDay === day.day}
-            onToggle={() => setExpandedDay(expandedDay === day.day ? -1 : day.day)}
-          />
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+          📅 Day-by-Day Itinerary
+        </Text>
+        {itinerary.itinerary.map((day: DayItinerary, index: number) => (
+          <AnimatedCard key={day.day} delay={100 + index * 60}>
+            <DayCard
+              day={day}
+              expanded={expandedDay === day.day}
+              onToggle={() => setExpandedDay(expandedDay === day.day ? -1 : day.day)}
+              isEditing={isEditing}
+              onUpdateDay={(updated) => {
+                const newItinerary = [...itinerary.itinerary];
+                const idx = newItinerary.findIndex((d) => d.day === updated.day);
+                if (idx !== -1) newItinerary[idx] = updated;
+                setItinerary({ ...itinerary, itinerary: newItinerary });
+              }}
+              onMoveActivity={(activityIndex, direction) => {
+                const newItinerary = [...itinerary.itinerary];
+                const currentDayIndex = index;
+                if (direction === 'prevDay' && currentDayIndex > 0) {
+                  const targetDayIndex = currentDayIndex - 1;
+                  const act = newItinerary[currentDayIndex].activities.splice(activityIndex, 1)[0];
+                  newItinerary[targetDayIndex].activities.push(act);
+                } else if (direction === 'nextDay' && currentDayIndex < newItinerary.length - 1) {
+                  const targetDayIndex = currentDayIndex + 1;
+                  const act = newItinerary[currentDayIndex].activities.splice(activityIndex, 1)[0];
+                  newItinerary[targetDayIndex].activities.push(act);
+                }
+                setItinerary({ ...itinerary, itinerary: newItinerary });
+              }}
+            />
+          </AnimatedCard>
         ))}
 
         {/* Packing tips */}
         {itinerary.packingTips?.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>🎒 Packing Tips</Text>
-            <View style={styles.tipsCard}>
-              {itinerary.packingTips.map((tip: string, i: number) => (
-                <View key={i} style={[styles.tipRow, i < itinerary.packingTips.length - 1 && styles.tipRowBorder]}>
-                  <Ionicons name="checkmark-circle" size={16} color={Colors.SUCCESS} />
-                  <Text style={styles.tipText}>{tip}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              🎒 Packing Tips
+            </Text>
+            <AnimatedCard delay={400}>
+              <View
+                style={[
+                  styles.tipsCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                {itinerary.packingTips.map((tip: string, i: number) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.tipRow,
+                      i < itinerary.packingTips.length - 1 && [
+                        styles.tipRowBorder,
+                        { borderBottomColor: theme.divider },
+                      ],
+                    ]}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color={theme.success} />
+                    <Text style={[styles.tipText, { color: theme.textPrimary }]}>{tip}</Text>
+                  </View>
+                ))}
+              </View>
+            </AnimatedCard>
           </>
         )}
 
         {/* Travel tips */}
         {itinerary.travelTips?.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>💡 Travel Tips</Text>
-            <View style={styles.tipsCard}>
-              {itinerary.travelTips.map((tip: string, i: number) => (
-                <View key={i} style={[styles.tipRow, i < itinerary.travelTips.length - 1 && styles.tipRowBorder]}>
-                  <Ionicons name="bulb-outline" size={16} color={Colors.SECONDARY} />
-                  <Text style={styles.tipText}>{tip}</Text>
-                </View>
-              ))}
-            </View>
+            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+              💡 Travel Tips
+            </Text>
+            <AnimatedCard delay={500}>
+              <View
+                style={[
+                  styles.tipsCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                {itinerary.travelTips.map((tip: string, i: number) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.tipRow,
+                      i < itinerary.travelTips.length - 1 && [
+                        styles.tipRowBorder,
+                        { borderBottomColor: theme.divider },
+                      ],
+                    ]}
+                  >
+                    <Ionicons name="bulb-outline" size={16} color={theme.secondary} />
+                    <Text style={[styles.tipText, { color: theme.textPrimary }]}>{tip}</Text>
+                  </View>
+                ))}
+              </View>
+            </AnimatedCard>
           </>
         )}
 
@@ -206,62 +459,189 @@ function DayCard({
   day,
   expanded,
   onToggle,
+  isEditing,
+  onUpdateDay,
 }: {
   day: DayItinerary;
   expanded: boolean;
   onToggle: () => void;
+  isEditing?: boolean;
+  onUpdateDay?: (d: DayItinerary) => void;
+  onMoveActivity?: (activityIndex: number, direction: 'prevDay' | 'nextDay') => void;
 }) {
+  const { theme } = useTheme();
+
+  const updateActivity = (index: number, field: keyof typeof day.activities[0], value: string) => {
+    if (!onUpdateDay) return;
+    const newActs = [...day.activities];
+    newActs[index] = { ...newActs[index], [field]: value };
+    onUpdateDay({ ...day, activities: newActs });
+  };
+
+  const deleteActivity = (index: number) => {
+    if (!onUpdateDay) return;
+    const newActs = [...day.activities];
+    newActs.splice(index, 1);
+    onUpdateDay({ ...day, activities: newActs });
+  };
+
+  const addActivity = () => {
+    if (!onUpdateDay) return;
+    const newActs = [...day.activities, {
+      time: 'New',
+      activity: 'New Activity',
+      location: '',
+      description: '',
+      estimatedCost: ''
+    }];
+    onUpdateDay({ ...day, activities: newActs as any });
+  };
+
   return (
-    <View style={dayStyles.card}>
-      <TouchableOpacity style={dayStyles.header} onPress={onToggle} activeOpacity={0.8}>
-        <View style={dayStyles.dayBadge}>
-          <Text style={dayStyles.dayNumber}>Day {day.day}</Text>
+    <View
+      style={[
+        dayStyles.card,
+        {
+          backgroundColor: theme.surface,
+          borderColor: theme.border,
+          ...Platform.select({
+            ios: {
+              shadowColor: theme.shadowColor,
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: theme.shadowOpacity,
+              shadowRadius: 6,
+            },
+            android: { elevation: 1 },
+          }),
+        },
+      ]}
+    >
+      <PressableScale onPress={onToggle}>
+        <View style={dayStyles.header}>
+          <View style={[dayStyles.dayBadge, { backgroundColor: theme.primary }]}>
+            <Text style={dayStyles.dayNumber}>Day {day.day}</Text>
+          </View>
+          {isEditing ? (
+             <TextInput 
+               style={[dayStyles.theme, { color: theme.textPrimary, borderBottomWidth: 1, borderBottomColor: theme.border }]}
+               value={day.theme}
+               onChangeText={(t) => onUpdateDay?.({ ...day, theme: t })}
+             />
+          ) : (
+             <Text style={[dayStyles.theme, { color: theme.textPrimary }]} numberOfLines={1}>
+               {day.theme}
+             </Text>
+          )}
+          <Ionicons
+            name={expanded ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color={theme.textTertiary}
+          />
         </View>
-        <Text style={dayStyles.theme} numberOfLines={1}>
-          {day.theme}
-        </Text>
-        <Ionicons
-          name={expanded ? 'chevron-up' : 'chevron-down'}
-          size={20}
-          color={Colors.GRAY}
-        />
-      </TouchableOpacity>
+      </PressableScale>
 
       {expanded && (
-        <View style={dayStyles.body}>
+        <View style={[dayStyles.body, { borderTopColor: theme.divider }]}>
           {day.activities.map((act, i) => {
-            const color = TIME_COLORS[act.time] ?? Colors.PRIMARY;
+            const color = TIME_COLORS[act.time] ?? theme.primary;
             const icon = TIME_ICONS[act.time] ?? 'time-outline';
             return (
               <View key={i} style={dayStyles.activityRow}>
-                {/* Timeline line */}
                 <View style={dayStyles.timelineCol}>
                   <View style={[dayStyles.timelineDot, { backgroundColor: color }]}>
-                    <Ionicons name={icon as never} size={12} color={Colors.WHITE} />
+                    <Ionicons name={icon as never} size={12} color="#FFF" />
                   </View>
                   {i < day.activities.length - 1 && (
-                    <View style={[dayStyles.timelineLine, { backgroundColor: color + '40' }]} />
+                    <View
+                      style={[dayStyles.timelineLine, { backgroundColor: color + '30' }]}
+                    />
                   )}
                 </View>
-
-                {/* Content */}
                 <View style={dayStyles.activityContent}>
                   <View style={dayStyles.activityHeader}>
-                    <Text style={[dayStyles.activityTime, { color }]}>{act.time}</Text>
+                    {isEditing ? (
+                      <TextInput 
+                        style={[dayStyles.activityTime, { color, borderBottomWidth: 1, borderBottomColor: theme.border }]} 
+                        value={act.time} 
+                        onChangeText={(t) => updateActivity(i, 'time', t)} 
+                      />
+                    ) : (
+                      <Text style={[dayStyles.activityTime, { color }]}>{act.time}</Text>
+                    )}
                     <View style={[dayStyles.costBadge, { backgroundColor: color + '15' }]}>
-                      <Text style={[dayStyles.costText, { color }]}>{act.estimatedCost}</Text>
+                      {isEditing ? (
+                        <TextInput 
+                          style={[dayStyles.costText, { color, borderBottomWidth: 1, borderBottomColor: theme.border }]} 
+                          value={act.estimatedCost} 
+                          onChangeText={(t) => updateActivity(i, 'estimatedCost', t)} 
+                        />
+                      ) : (
+                        <Text style={[dayStyles.costText, { color }]}>{act.estimatedCost}</Text>
+                      )}
                     </View>
                   </View>
-                  <Text style={dayStyles.activityName}>{act.activity}</Text>
+                  {isEditing ? (
+                    <TextInput 
+                      style={[dayStyles.activityName, { color: theme.textPrimary, borderBottomWidth: 1, borderBottomColor: theme.border }]} 
+                      value={act.activity} 
+                      onChangeText={(t) => updateActivity(i, 'activity', t)} 
+                    />
+                  ) : (
+                    <Text style={[dayStyles.activityName, { color: theme.textPrimary }]}>
+                      {act.activity}
+                    </Text>
+                  )}
                   <View style={dayStyles.locationRow}>
-                    <Ionicons name="location-outline" size={13} color={Colors.GRAY} />
-                    <Text style={dayStyles.locationText}>{act.location}</Text>
+                    <Ionicons name="location-outline" size={13} color={theme.textTertiary} />
+                    {isEditing ? (
+                      <TextInput 
+                        style={[dayStyles.locationText, { color: theme.textSecondary, flex: 1, borderBottomWidth: 1, borderBottomColor: theme.border }]} 
+                        value={act.location} 
+                        onChangeText={(t) => updateActivity(i, 'location', t)} 
+                      />
+                    ) : (
+                      <Text style={[dayStyles.locationText, { color: theme.textSecondary }]}>
+                        {act.location}
+                      </Text>
+                    )}
                   </View>
-                  <Text style={dayStyles.activityDesc}>{act.description}</Text>
+                  {isEditing ? (
+                    <TextInput 
+                      style={[dayStyles.activityDesc, { color: theme.textSecondary, borderBottomWidth: 1, borderBottomColor: theme.border }]} 
+                      value={act.description} 
+                      onChangeText={(t) => updateActivity(i, 'description', t)} 
+                      multiline
+                    />
+                  ) : (
+                    <Text style={[dayStyles.activityDesc, { color: theme.textSecondary }]}>
+                      {act.description}
+                    </Text>
+                  )}
+                  {isEditing && (
+                    <View style={dayStyles.editControls}>
+                      <TouchableOpacity onPress={() => onMoveActivity?.(i, 'prevDay')} style={dayStyles.controlBtn}>
+                        <Ionicons name="arrow-up" size={16} color={theme.primary} />
+                        <Text style={[dayStyles.controlText, { color: theme.primary }]}>Move Prev Day</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => onMoveActivity?.(i, 'nextDay')} style={dayStyles.controlBtn}>
+                        <Ionicons name="arrow-down" size={16} color={theme.primary} />
+                        <Text style={[dayStyles.controlText, { color: theme.primary }]}>Move Next Day</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteActivity(i)} style={dayStyles.controlBtn}>
+                        <Ionicons name="trash-outline" size={16} color={theme.error} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </View>
             );
           })}
+          {isEditing && (
+            <TouchableOpacity style={[dayStyles.addActivityBtn, { backgroundColor: theme.primaryMuted }]} onPress={addActivity}>
+              <Ionicons name="add" size={18} color={theme.primary} />
+              <Text style={[dayStyles.addActivityText, { color: theme.primary }]}>Add Activity</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -270,26 +650,18 @@ function DayCard({
 
 const dayStyles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.WHITE,
-    borderRadius: 16,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
+    marginBottom: spacing.md,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    padding: spacing.lg,
+    gap: spacing.md,
   },
   dayBadge: {
-    backgroundColor: Colors.PRIMARY,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -297,25 +669,21 @@ const dayStyles = StyleSheet.create({
   dayNumber: {
     fontFamily: 'outfit-bold',
     fontSize: 13,
-    color: Colors.WHITE,
+    color: '#FFF',
   },
   theme: {
     flex: 1,
-    fontFamily: 'outfit-medium',
-    fontSize: 15,
-    color: Colors.DARK,
+    ...typography.label,
   },
   body: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: Colors.LIGHT_GRAY,
-    paddingTop: 12,
-    gap: 0,
+    paddingTop: spacing.md,
   },
   activityRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
     marginBottom: 4,
   },
   timelineCol: {
@@ -338,7 +706,7 @@ const dayStyles = StyleSheet.create({
   },
   activityContent: {
     flex: 1,
-    paddingBottom: 16,
+    paddingBottom: spacing.lg,
     gap: 4,
   },
   activityHeader: {
@@ -362,9 +730,8 @@ const dayStyles = StyleSheet.create({
     fontSize: 12,
   },
   activityName: {
+    ...typography.subtitle,
     fontFamily: 'outfit-bold',
-    fontSize: 15,
-    color: Colors.DARK,
     marginTop: 2,
   },
   locationRow: {
@@ -373,70 +740,92 @@ const dayStyles = StyleSheet.create({
     gap: 4,
   },
   locationText: {
-    fontFamily: 'outfit',
-    fontSize: 13,
-    color: Colors.GRAY,
+    ...typography.bodySmall,
   },
   activityDesc: {
-    fontFamily: 'outfit',
-    fontSize: 13,
-    color: Colors.GRAY,
-    lineHeight: 18,
+    ...typography.bodySmall,
     marginTop: 2,
   },
+  editControls: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  controlBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 6,
+  },
+  controlText: {
+    fontFamily: 'outfit-medium',
+    fontSize: 12,
+  },
+  addActivityBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    marginTop: spacing.sm,
+    borderRadius: radii.md,
+    gap: spacing.sm,
+  },
+  addActivityText: {
+    fontFamily: 'outfit-bold',
+    fontSize: 14,
+  },
 });
-
-// ─── Main styles ──────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.BACKGROUND,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 32,
-    gap: 12,
-    backgroundColor: Colors.BACKGROUND,
+    padding: spacing['3xl'],
+    gap: spacing.md,
   },
   loadingText: {
-    fontFamily: 'outfit',
-    fontSize: 16,
-    color: Colors.GRAY,
-    marginTop: 8,
+    ...typography.body,
+    marginTop: spacing.sm,
   },
   errorTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 20,
-    color: Colors.DARK,
+    ...typography.h2,
     textAlign: 'center',
   },
   errorMsg: {
-    fontFamily: 'outfit',
-    fontSize: 14,
-    color: Colors.GRAY,
+    ...typography.body,
     textAlign: 'center',
     lineHeight: 20,
   },
   retryBtn: {
-    backgroundColor: Colors.PRIMARY,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 12,
-    marginTop: 8,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing['2xl'] + 4,
+    borderRadius: radii.md,
+    marginTop: spacing.sm,
   },
   retryBtnText: {
-    fontFamily: 'outfit-bold',
-    fontSize: 15,
-    color: Colors.WHITE,
+    ...typography.buttonSmall,
+    color: '#FFF',
   },
   hero: {
-    backgroundColor: Colors.PRIMARY,
     paddingTop: 56,
-    paddingBottom: 28,
-    paddingHorizontal: 24,
+    paddingBottom: spacing['2xl'] + 4,
+    paddingHorizontal: spacing['2xl'],
+    overflow: 'hidden',
+  },
+  heroHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   backBtn: {
     width: 40,
@@ -445,19 +834,26 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 14,
+  },
+  deleteBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   heroTitle: {
     fontFamily: 'outfit-bold',
     fontSize: 26,
-    color: Colors.WHITE,
-    marginBottom: 12,
+    color: '#FFF',
+    marginBottom: spacing.md,
     lineHeight: 32,
   },
   heroBadgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   heroBadge: {
     flexDirection: 'row',
@@ -466,92 +862,71 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
     paddingVertical: 5,
     paddingHorizontal: 10,
-    borderRadius: 20,
+    borderRadius: radii.full,
   },
   heroBadgeText: {
     fontFamily: 'outfit-medium',
     fontSize: 12,
-    color: Colors.WHITE,
+    color: '#FFF',
+  },
+  heroActionsScroll: {
+    marginTop: spacing.lg,
   },
   heroActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
+    gap: spacing.sm + 2,
   },
   heroActionBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.WHITE,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    backgroundColor: '#FFF',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: radii.full,
   },
   heroActionText: {
     fontFamily: 'outfit-medium',
     fontSize: 13,
-    color: Colors.PRIMARY,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    padding: spacing.xl,
   },
   summaryCard: {
-    backgroundColor: Colors.WHITE,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 20,
+    borderRadius: radii.lg,
+    padding: spacing.lg + 2,
+    marginBottom: spacing.xl,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
   },
   summaryText: {
-    fontFamily: 'outfit',
-    fontSize: 15,
-    color: Colors.DARK,
-    lineHeight: 22,
+    ...typography.body,
   },
   sectionTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 18,
-    color: Colors.DARK,
-    marginBottom: 12,
+    ...typography.h3,
+    marginBottom: spacing.md,
     marginTop: 4,
   },
   tipsCard: {
-    backgroundColor: Colors.WHITE,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
+    borderRadius: radii.lg,
+    padding: spacing.lg + 2,
+    marginBottom: spacing.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
   },
   tipRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    paddingVertical: 10,
+    gap: spacing.sm + 2,
+    paddingVertical: spacing.sm + 2,
   },
   tipRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.LIGHT_GRAY,
   },
   tipText: {
-    fontFamily: 'outfit',
-    fontSize: 14,
-    color: Colors.DARK,
+    ...typography.body,
     flex: 1,
+    fontSize: 14,
     lineHeight: 20,
   },
 });

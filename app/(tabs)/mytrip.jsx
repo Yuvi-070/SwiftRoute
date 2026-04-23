@@ -1,24 +1,31 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { useCallback, useState } from 'react';
+import { collection, getDocs, orderBy, query, deleteDoc, doc } from 'firebase/firestore';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 import StartNewTripCard from '../../components/MyTrips/StartNewTripCard';
 import { db } from '../../configs/firebaseConfig';
-import { Colors } from '../../constants/theme';
-import { loadAllTrips } from '../../services/storageService';
+import { useTheme } from '../../context/ThemeContext';
+import { radii, spacing, typography } from '../../constants/theme';
+import { loadAllTrips, deleteTrip as deleteLocalTrip } from '../../services/storageService';
+import AnimatedCard from '../../components/ui/AnimatedCard';
+import PressableScale from '../../components/ui/PressableScale';
 
 export default function MyTrip() {
   const router = useRouter();
+  const { theme, isDark } = useTheme();
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -30,7 +37,6 @@ export default function MyTrip() {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setTrips(data);
     } catch (err) {
-      // Firestore may not be configured yet – fall back to local AsyncStorage
       console.warn('[MyTrip] Firestore unavailable, loading from local storage:', err);
       try {
         const localTrips = await loadAllTrips();
@@ -57,22 +63,95 @@ export default function MyTrip() {
     loadTrips();
   };
 
+  const handleDeleteTrip = (id) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm("Are you sure you want to delete this trip?")) {
+        executeDelete(id);
+      }
+    } else {
+      Alert.alert(
+        "Delete Trip",
+        "Are you sure you want to delete this trip?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Delete", style: "destructive", onPress: () => executeDelete(id) }
+        ]
+      );
+    }
+  };
+
+  const executeDelete = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'trips', id));
+      await deleteLocalTrip(id);
+      setTrips((prev) => prev.filter(t => t.id !== id));
+    } catch(err) {
+      console.warn('[MyTrip] Delete failed:', err);
+      alert("Failed to delete trip");
+    }
+  };
+
+  // Upcoming trip countdown
+  const upcomingTrip = trips.find((t) => {
+    const startDate = t.tripDetails?.startDate;
+    if (!startDate) return false;
+    return new Date(startDate) > new Date();
+  });
+
+  const daysUntil = upcomingTrip
+    ? Math.ceil(
+        (new Date(upcomingTrip.tripDetails.startDate).getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : null;
+
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Trips</Text>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
+      <View style={{ flex: 1, width: '100%', maxWidth: 800, alignSelf: 'center' }}>
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: theme.surface, borderBottomColor: theme.border }]}>
+        <View>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>My Trips</Text>
+          {trips.length > 0 && (
+            <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
+              {trips.length} {trips.length === 1 ? 'adventure' : 'adventures'} planned
+            </Text>
+          )}
+        </View>
         <TouchableOpacity
-          style={styles.addBtn}
+          style={[styles.addBtn, { backgroundColor: theme.primary }]}
           onPress={() => router.push('/create-trip')}
         >
-          <Ionicons name="add" size={22} color={Colors.WHITE} />
+          <Ionicons name="add" size={22} color="#FFF" />
         </TouchableOpacity>
       </View>
 
+      {/* Countdown banner */}
+      {upcomingTrip && daysUntil !== null && daysUntil > 0 && (
+        <AnimatedCard delay={100}>
+          <View style={[styles.countdownBanner, { backgroundColor: theme.primaryMuted }]}>
+            <View style={[styles.countdownIcon, { backgroundColor: theme.primaryLight }]}>
+              <Ionicons name="airplane" size={18} color={theme.primary} />
+            </View>
+            <View style={styles.countdownText}>
+              <Text style={[styles.countdownTitle, { color: theme.primary }]}>
+                {daysUntil} {daysUntil === 1 ? 'day' : 'days'} to go!
+              </Text>
+              <Text style={[styles.countdownDest, { color: theme.textSecondary }]} numberOfLines={1}>
+                {upcomingTrip.itinerary?.destination || upcomingTrip.tripDetails?.destination}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.primary} />
+          </View>
+        </AnimatedCard>
+      )}
+
       {loading ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.PRIMARY} />
-          <Text style={styles.loadingText}>Loading your trips…</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
+            Loading your trips…
+          </Text>
         </View>
       ) : trips.length === 0 ? (
         <StartNewTripCard />
@@ -86,161 +165,211 @@ export default function MyTrip() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={Colors.PRIMARY}
+              tintColor={theme.primary}
             />
           }
-          renderItem={({ item }) => <TripCard trip={item} />}
+          renderItem={({ item, index }) => (
+            <AnimatedCard delay={index * 80}>
+              <TripCard trip={item} onDelete={handleDeleteTrip} />
+            </AnimatedCard>
+          )}
         />
       )}
+      </View>
     </View>
   );
 }
 
-function TripCard({ trip }) {
+function TripCard({ trip, onDelete }) {
   const router = useRouter();
+  const { theme, isDark } = useTheme();
   const itinerary = trip.itinerary;
   const details = trip.tripDetails;
 
   return (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => router.push(`/itinerary/${trip.id}`)}
-      activeOpacity={0.85}
-    >
-      <View style={styles.cardLeft}>
-        <View style={styles.cardIconBox}>
-          <Ionicons name="airplane" size={28} color={Colors.WHITE} />
-        </View>
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>
-          {itinerary?.tripTitle ?? details?.destination ?? 'My Trip'}
-        </Text>
-        <View style={styles.cardMeta}>
-          <View style={styles.metaItem}>
-            <Ionicons name="location-outline" size={13} color={Colors.PRIMARY} />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {itinerary?.destination ?? details?.destination}
-            </Text>
+    <PressableScale onPress={() => router.push(`/itinerary/${trip.id}`)}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            ...Platform.select({
+              ios: {
+                shadowColor: theme.shadowColor,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: theme.shadowOpacity,
+                shadowRadius: 12,
+              },
+              android: { elevation: 3 },
+            }),
+          },
+        ]}
+      >
+        <View style={[styles.cardLeft, { backgroundColor: theme.primary }]}>
+          <View style={styles.cardIconBox}>
+            <Ionicons name="airplane" size={24} color="#FFF" />
           </View>
-          {details?.totalDays && (
+        </View>
+        <View style={styles.cardBody}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+            {itinerary?.tripTitle ?? details?.destination ?? 'My Trip'}
+          </Text>
+          <View style={styles.cardMeta}>
             <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={13} color={Colors.GRAY} />
-              <Text style={styles.metaText}>{details.totalDays} days</Text>
+              <Ionicons name="location-outline" size={13} color={theme.primary} />
+              <Text style={[styles.metaText, { color: theme.textSecondary }]} numberOfLines={1}>
+                {itinerary?.destination ?? details?.destination}
+              </Text>
+            </View>
+            {details?.totalDays && (
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={13} color={theme.textTertiary} />
+                <Text style={[styles.metaText, { color: theme.textSecondary }]}>
+                  {details.totalDays} days
+                </Text>
+              </View>
+            )}
+          </View>
+          {itinerary?.estimatedTotalCost && (
+            <View style={[styles.costBadge, { backgroundColor: theme.primaryMuted }]}>
+              <Text style={[styles.costText, { color: theme.primary }]}>
+                {itinerary.estimatedTotalCost}
+              </Text>
             </View>
           )}
+          <Text style={[styles.cardDate, { color: theme.textTertiary }]}>
+            {trip.createdAt
+              ? new Date(trip.createdAt).toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : ''}
+          </Text>
         </View>
-        {itinerary?.estimatedTotalCost && (
-          <View style={styles.costBadge}>
-            <Text style={styles.costText}>{itinerary.estimatedTotalCost}</Text>
-          </View>
-        )}
-        <Text style={styles.cardDate}>
-          {trip.createdAt
-            ? new Date(trip.createdAt).toLocaleDateString('en-GB', {
-                day: 'numeric',
-                month: 'short',
-                year: 'numeric',
-              })
-            : ''}
-        </Text>
+        <TouchableOpacity 
+          style={styles.cardDelete} 
+          onPress={(e) => {
+            if(Platform.OS === 'web') e.stopPropagation();
+            onDelete(trip.id);
+          }}
+        >
+          <Ionicons name="trash-outline" size={20} color={theme.error} />
+        </TouchableOpacity>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={Colors.GRAY} style={styles.cardChevron} />
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.BACKGROUND,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing['2xl'],
     paddingTop: 60,
-    paddingBottom: 16,
-    backgroundColor: Colors.WHITE,
+    paddingBottom: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.LIGHT_GRAY,
   },
   headerTitle: {
-    fontFamily: 'outfit-bold',
-    fontSize: 30,
-    color: Colors.DARK,
+    ...typography.h1,
+  },
+  headerSub: {
+    ...typography.bodySmall,
+    marginTop: 2,
   },
   addBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.PRIMARY,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  countdownBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radii.lg,
+    gap: spacing.md,
+  },
+  countdownIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  countdownText: {
+    flex: 1,
+  },
+  countdownTitle: {
+    ...typography.subtitle,
+  },
+  countdownDest: {
+    ...typography.bodySmall,
+    marginTop: 1,
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   loadingText: {
-    fontFamily: 'outfit',
-    fontSize: 15,
-    color: Colors.GRAY,
+    ...typography.body,
   },
   listContent: {
-    padding: 20,
-    gap: 14,
+    padding: spacing.xl,
+    gap: spacing.md,
+    paddingBottom: 100,
   },
   card: {
-    backgroundColor: Colors.WHITE,
-    borderRadius: 18,
+    borderRadius: radii.xl,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
   },
   cardLeft: {
     width: 70,
     alignSelf: 'stretch',
-    backgroundColor: Colors.PRIMARY,
     justifyContent: 'center',
     alignItems: 'center',
   },
   cardIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   cardBody: {
     flex: 1,
-    padding: 14,
+    padding: spacing.md + 2,
     gap: 4,
   },
   cardTitle: {
+    ...typography.subtitle,
     fontFamily: 'outfit-bold',
-    fontSize: 16,
-    color: Colors.DARK,
   },
   cardMeta: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
     marginTop: 2,
   },
   metaItem: {
@@ -249,14 +378,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   metaText: {
-    fontFamily: 'outfit',
-    fontSize: 13,
-    color: Colors.GRAY,
+    ...typography.bodySmall,
   },
   costBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: Colors.PRIMARY + '15',
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 3,
     borderRadius: 6,
     marginTop: 4,
@@ -264,15 +390,12 @@ const styles = StyleSheet.create({
   costText: {
     fontFamily: 'outfit-medium',
     fontSize: 12,
-    color: Colors.PRIMARY,
   },
   cardDate: {
-    fontFamily: 'outfit',
-    fontSize: 11,
-    color: Colors.GRAY,
+    ...typography.caption,
     marginTop: 4,
   },
-  cardChevron: {
-    marginRight: 14,
+  cardDelete: {
+    padding: spacing.md,
   },
 });

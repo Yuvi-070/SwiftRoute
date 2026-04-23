@@ -1,83 +1,93 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Colors } from '../../constants/theme';
+import React from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { useTheme } from '../../context/ThemeContext';
+import { radii, spacing, typography } from '../../constants/theme';
+import PressableScale from '../ui/PressableScale';
+import AnimatedCard from '../ui/AnimatedCard';
 
 export default function StartNewTripCard() {
   const router = useRouter();
+  const { theme } = useTheme();
 
   return (
-    <View style={styles.container}>
-      <View style={styles.iconWrapper}>
-        <Ionicons name="airplane-outline" size={48} color={Colors.PRIMARY} />
-      </View>
+    <View style={styles.wrapper}>
+      <AnimatedCard delay={0}>
+        <View style={[styles.illustrationBox, { backgroundColor: theme.primaryMuted }]}>
+          <Ionicons name="airplane" size={64} color={theme.primary} />
+        </View>
+      </AnimatedCard>
 
-      <Text style={styles.title}>No Trips Planned Yet</Text>
+      <AnimatedCard delay={100}>
+        <Text style={[styles.title, { color: theme.textPrimary }]}>
+          No trips yet
+        </Text>
+      </AnimatedCard>
 
-      <Text style={styles.subtitle}>
-        Looks like it{"'"}s time to plan a new adventure! Let our AI build a personalised itinerary for you.
-      </Text>
+      <AnimatedCard delay={200}>
+        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          Start planning your dream vacation with our AI travel assistant.
+        </Text>
+      </AnimatedCard>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => router.push('/create-trip')}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add-circle-outline" size={20} color={Colors.WHITE} />
-        <Text style={styles.buttonText}>Start Planning</Text>
-      </TouchableOpacity>
+      <AnimatedCard delay={300}>
+        <PressableScale onPress={() => router.push('/create-trip')}>
+          <View style={[styles.button, { backgroundColor: theme.primary }]}>
+            <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+            <Text style={styles.buttonText}>Create Your First Trip</Text>
+          </View>
+        </PressableScale>
+      </AnimatedCard>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  wrapper: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    gap: 16,
+    paddingHorizontal: spacing['3xl'],
+    gap: spacing.md,
   },
-  iconWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.PRIMARY + '15',
+  illustrationBox: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.lg,
   },
   title: {
-    fontFamily: 'outfit-bold',
-    fontSize: 24,
-    color: Colors.DARK,
+    ...typography.h2,
     textAlign: 'center',
   },
   subtitle: {
-    fontFamily: 'outfit',
-    fontSize: 15,
-    color: Colors.GRAY,
+    ...typography.body,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: spacing.sm,
   },
   button: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.PRIMARY,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 16,
-    marginTop: 8,
-    shadowColor: Colors.PRIMARY,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing['3xl'],
+    borderRadius: radii.full,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: { elevation: 6 },
+    }),
   },
   buttonText: {
-    fontFamily: 'outfit-bold',
-    fontSize: 17,
-    color: Colors.WHITE,
+    ...typography.button,
+    color: '#FFF',
   },
 });

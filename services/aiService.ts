@@ -49,7 +49,7 @@ export interface PackingList {
 }
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'llama3-8b-8192';
+const MODEL = 'llama-3.1-8b-instant';
 
 function buildPrompt(trip: TripDetails, weather?: WeatherForecast): string {
   const budgetLabel =
@@ -97,7 +97,7 @@ The JSON must follow this exact structure:
           "activity": "string",
           "location": "string",
           "description": "string (1-2 sentences)",
-          "estimatedCost": "string (e.g. $15 per person)"
+          "estimatedCost": "string (e.g. ₹1500 per person)"
         },
         {
           "time": "Afternoon",
@@ -116,7 +116,7 @@ The JSON must follow this exact structure:
       ]
     }
   ],
-  "estimatedTotalCost": "string (e.g. $800 - $1,200 per person)",
+  "estimatedTotalCost": "string (e.g. ₹80,000 - ₹1,20,000 per person)",
   "packingTips": ["string", "string", "string"],
   "travelTips": ["string", "string", "string"]
 }
@@ -149,6 +149,9 @@ async function callGroq(prompt: string, systemMessage: string): Promise<string> 
 
   if (!response.ok) {
     const errorText = await response.text();
+    if (response.status === 429 || errorText.includes('rate_limit_exceeded') || errorText.includes('model_decommissioned')) {
+      throw new Error('Our AI is currently experiencing high demand. Please wait a moment and try again.');
+    }
     throw new Error(`Groq API error ${response.status}: ${errorText}`);
   }
 
