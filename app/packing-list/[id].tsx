@@ -111,6 +111,14 @@ export default function PackingListScreen() {
     if (id) await savePackingList(id, updated);
   };
 
+  const updateItemLabel = async (itemId: string, label: string) => {
+    const nextLabel = (label || '').trim();
+    if (!nextLabel) return;
+    const updated = items.map((item) => (item.id === itemId ? { ...item, label: nextLabel } : item));
+    setItems(updated);
+    if (id) await savePackingList(id, updated);
+  };
+
   const deleteItem = async (itemId: string) => {
     const updated = items.filter((item) => item.id !== itemId);
     setItems(updated);
@@ -268,15 +276,36 @@ export default function PackingListScreen() {
                         <Ionicons name="checkmark" size={14} color="#FFF" />
                       )}
                     </View>
-                    <Text
-                      style={[
-                        styles.itemLabel,
-                        { color: item.checked ? theme.textTertiary : theme.textPrimary },
-                        item.checked && styles.itemLabelChecked,
-                      ]}
-                    >
-                      {item.label}
-                    </Text>
+                    {isEditing ? (
+                      <TextInput
+                        style={[
+                          styles.itemLabel,
+                          {
+                            color: theme.textPrimary,
+                            borderBottomWidth: 1,
+                            borderBottomColor: theme.border,
+                            paddingVertical: 2,
+                          },
+                        ]}
+                        defaultValue={item.label}
+                        placeholder="Item…"
+                        placeholderTextColor={theme.textTertiary}
+                        onSubmitEditing={(e) => updateItemLabel(item.id, e.nativeEvent.text)}
+                        onEndEditing={(e) => updateItemLabel(item.id, e.nativeEvent.text)}
+                        blurOnSubmit
+                        returnKeyType="done"
+                      />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.itemLabel,
+                          { color: item.checked ? theme.textTertiary : theme.textPrimary },
+                          item.checked && styles.itemLabelChecked,
+                        ]}
+                      >
+                        {item.label}
+                      </Text>
+                    )}
                     {isEditing && (
                       <TouchableOpacity onPress={() => deleteItem(item.id)} style={styles.deleteItemBtn}>
                         <Ionicons name="trash-outline" size={18} color={theme.error} />

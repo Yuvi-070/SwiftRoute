@@ -16,6 +16,15 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Environment variables (.env)
+
+This project reads env vars from `.env` using Expo's `EXPO_PUBLIC_*` convention.
+
+- **Setup**: copy `.env.example` to `.env`, fill in values, then **restart** the dev server (`expo start`) so the variables are picked up.
+- **Firebase**: required for email/password auth and Firestore storage.
+- **Groq**: required for AI itinerary + packing list generation.
+- **Weather**: the app uses **Open‑Meteo** by default, which **does not require an API key**. If you switch to another provider later, add the key as `EXPO_PUBLIC_WEATHER_API_KEY` (or a provider-specific name) in `.env`, then restart Expo.
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

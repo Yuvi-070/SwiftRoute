@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { addDoc, collection } from 'firebase/firestore';
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -11,10 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import SkeletonLoader from '../../components/ui/SkeletonLoader';
+import GlassCard from '../../components/ui/GlassCard';
 import MapboxAutocomplete, { type MapboxPlace } from '../../components/MapboxAutocomplete';
 import { db } from '../../configs/firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
-import { Colors } from '../../constants/theme';
 import { generateItinerary, type TripDetails } from '../../services/aiService';
 import { saveTrip, saveWeather } from '../../services/storageService';
 import { fetchWeatherForecast } from '../../services/weatherService';
@@ -60,7 +61,7 @@ const BUDGET_OPTIONS: { key: BudgetType; label: string; icon: string; desc: stri
     label: 'Moderate',
     icon: 'card-outline',
     desc: 'Mix of comfort & value',
-    color: Colors.PRIMARY,
+    color: '#6366F1',
   },
   {
     key: 'luxury',
@@ -89,15 +90,17 @@ export default function CreateTrip() {
   const navigation = useNavigation();
   const router = useRouter();
   const { theme } = useTheme();
+  const params = useLocalSearchParams<{ autoDestination?: string }>();
 
   const [step, setStep] = useState(0);
+  const styles = createStyles(theme);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   const [form, setForm] = useState<TripFormState>({
-    destination: '',
+    destination: params.autoDestination || '',
     destinationCoords: undefined,
     totalDays: 3,
     startDate: addDays(new Date(), DEFAULT_START_DATE_OFFSET_DAYS),
@@ -105,6 +108,12 @@ export default function CreateTrip() {
     travelersCount: 1,
     budget: 'moderate',
   });
+
+  useEffect(() => {
+    if (params.autoDestination) {
+      setStep(1); // Skip destination step if pre-filled
+    }
+  }, [params.autoDestination]);
 
   useEffect(() => {
     navigation.setOptions({
@@ -238,7 +247,7 @@ export default function CreateTrip() {
       />
       {form.destination ? (
         <View style={styles.selectedBadge}>
-          <Ionicons name="checkmark-circle" size={16} color={Colors.SUCCESS} />
+          <Ionicons name="checkmark-circle" size={16} color={theme.success} />
           <Text style={styles.selectedBadgeText} numberOfLines={1}>
             {form.destination}
           </Text>
@@ -270,14 +279,14 @@ export default function CreateTrip() {
               style={[styles.counterBtn, form.totalDays >= 14 && styles.counterBtnDisabled]}
               onPress={() => form.totalDays < 14 && updateForm({ totalDays: form.totalDays + 1 })}
             >
-              <Ionicons name="add" size={22} color={form.totalDays >= 14 ? Colors.GRAY : Colors.WHITE} />
+              <Ionicons name="add" size={22} color={form.totalDays >= 14 ? theme.textSecondary : '#FFFFFF'} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Start date selector */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Start date</Text>
+        <View style={[styles.card, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
+          <Text style={[styles.cardLabel, { color: theme.textSecondary }]}>Start date</Text>
           <View style={styles.dateRow}>
             <TouchableOpacity
               onPress={() =>
@@ -285,7 +294,7 @@ export default function CreateTrip() {
               }
               style={styles.dateArrow}
             >
-              <Ionicons name="chevron-back" size={20} color={Colors.PRIMARY} />
+              <Ionicons name="chevron-back" size={20} color={theme.primary} />
             </TouchableOpacity>
             <Text style={[styles.dateValue, { color: theme.textPrimary }]}>{formatDate(form.startDate)}</Text>
             <TouchableOpacity
@@ -329,7 +338,7 @@ export default function CreateTrip() {
               <Text style={[styles.optionLabel, { color: theme.textPrimary }, isSelected && { color: theme.primary }]}>{opt.label}</Text>
               <Text style={[styles.optionDesc, { color: theme.textSecondary }]}>{opt.desc}</Text>
             </View>
-            {isSelected && <Ionicons name="checkmark-circle" size={22} color={Colors.PRIMARY} />}
+            {isSelected && <Ionicons name="checkmark-circle" size={22} color={theme.primary} />}
           </TouchableOpacity>
         );
       })}
@@ -420,7 +429,7 @@ export default function CreateTrip() {
 
         {error && (
           <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={16} color={Colors.ERROR} />
+            <Ionicons name="alert-circle" size={16} color={theme.error} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -490,11 +499,11 @@ export default function CreateTrip() {
           disabled={!canProceed() || loading}
         >
           {loading ? (
-            <ActivityIndicator color={Colors.WHITE} />
+            <ActivityIndicator color={'#FFFFFF'} />
           ) : (
             <>
               <Text style={styles.nextBtnText}>{isLastStep ? 'Generate Trip ✨' : 'Continue'}</Text>
-              {!isLastStep && <Ionicons name="arrow-forward" size={18} color={Colors.WHITE} />}
+              {!isLastStep && <Ionicons name="arrow-forward" size={18} color={'#FFFFFF'} />}
             </>
           )}
         </TouchableOpacity>
@@ -502,14 +511,13 @@ export default function CreateTrip() {
 
       {/* AI loading overlay */}
       {loading && (
-        <View style={styles.loadingOverlay}>
-          <View style={[styles.loadingCard, { backgroundColor: theme.surfaceElevated }]}>
-            <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={[styles.loadingTitle, { color: theme.textPrimary }]}>Building your itinerary…</Text>
-            <Text style={[styles.loadingSubtitle, { color: theme.textSecondary }]}>
-              Our AI is crafting a personalised day-by-day plan just for you. This takes about 10 seconds.
-            </Text>
-          </View>
+        <View style={[styles.loadingOverlay, StyleSheet.absoluteFill]}>
+          <GlassCard style={styles.loadingCard} intensity={80} rounded="2xl">
+            <SkeletonLoader style={{ width: 80, height: 80, alignSelf: 'center', marginBottom: 20 }} rounded="full" />
+            <SkeletonLoader style={{ width: '80%', height: 28, alignSelf: 'center', marginBottom: 12 }} />
+            <SkeletonLoader style={{ width: '100%', height: 16, alignSelf: 'center', marginBottom: 6 }} />
+            <SkeletonLoader style={{ width: '90%', height: 16, alignSelf: 'center' }} />
+          </GlassCard>
         </View>
       )}
     </View>
@@ -531,18 +539,19 @@ function ReviewRow({
   last?: boolean;
   theme: any;
 }) {
+  const styles = createReviewStyles(theme);
   return (
-    <View style={[reviewStyles.row, !last && { borderBottomWidth: 1, borderBottomColor: theme.divider }]}>
+    <View style={[styles.row, !last && { borderBottomWidth: 1, borderBottomColor: theme.divider }]}>
       <Ionicons name={icon as never} size={18} color={theme.primary} style={{ marginRight: 10 }} />
-      <Text style={[reviewStyles.label, { color: theme.textSecondary }]}>{label}</Text>
-      <Text style={[reviewStyles.value, { color: theme.textPrimary }]} numberOfLines={2}>
+      <Text style={[styles.label, { color: theme.textSecondary }]}>{label}</Text>
+      <Text style={[styles.value, { color: theme.textPrimary }]} numberOfLines={2}>
         {value}
       </Text>
     </View>
   );
 }
 
-const reviewStyles = StyleSheet.create({
+const createReviewStyles = (theme: any) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -550,38 +559,38 @@ const reviewStyles = StyleSheet.create({
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: Colors.LIGHT_GRAY,
+    borderBottomColor: theme.divider,
   },
   label: {
     fontFamily: 'outfit-medium',
     fontSize: 14,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
     width: 90,
   },
   value: {
     flex: 1,
     fontFamily: 'outfit-medium',
     fontSize: 15,
-    color: Colors.DARK,
+    color: theme.textPrimary,
     textAlign: 'right',
   },
 });
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.BACKGROUND,
+    backgroundColor: theme.background,
   },
   progressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 16,
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: Colors.LIGHT_GRAY,
+    borderBottomColor: theme.divider,
   },
   progressItem: {
     flexDirection: 'row',
@@ -592,29 +601,29 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.LIGHT_GRAY,
+    backgroundColor: theme.divider,
     justifyContent: 'center',
     alignItems: 'center',
   },
   progressDotActive: {
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: theme.primary,
   },
   progressDotText: {
     fontFamily: 'outfit-medium',
     fontSize: 12,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
   },
   progressDotTextActive: {
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
   progressLine: {
     flex: 1,
     height: 2,
-    backgroundColor: Colors.LIGHT_GRAY,
+    backgroundColor: theme.divider,
     marginHorizontal: 4,
   },
   progressLineActive: {
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: theme.primary,
   },
   scrollView: {
     flex: 1,
@@ -634,13 +643,13 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontFamily: 'outfit-bold',
     fontSize: 26,
-    color: Colors.DARK,
+    color: theme.textPrimary,
     textAlign: 'center',
   },
   stepSubtitle: {
     fontFamily: 'outfit',
     fontSize: 15,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 8,
@@ -649,7 +658,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.SUCCESS + '15',
+    backgroundColor: theme.success + '15',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 10,
@@ -657,11 +666,11 @@ const styles = StyleSheet.create({
   selectedBadgeText: {
     fontFamily: 'outfit-medium',
     fontSize: 14,
-    color: Colors.SUCCESS,
+    color: theme.success,
     flex: 1,
   },
   card: {
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
@@ -675,7 +684,7 @@ const styles = StyleSheet.create({
   cardLabel: {
     fontFamily: 'outfit-medium',
     fontSize: 14,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
     marginBottom: 12,
   },
   counterRow: {
@@ -688,17 +697,17 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: theme.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   counterBtnDisabled: {
-    backgroundColor: Colors.LIGHT_GRAY,
+    backgroundColor: theme.divider,
   },
   counterValue: {
     fontFamily: 'outfit-bold',
     fontSize: 32,
-    color: Colors.DARK,
+    color: theme.textPrimary,
     minWidth: 60,
     textAlign: 'center',
   },
@@ -713,19 +722,19 @@ const styles = StyleSheet.create({
   dateValue: {
     fontFamily: 'outfit-bold',
     fontSize: 18,
-    color: Colors.DARK,
+    color: theme.textPrimary,
   },
   dateSubText: {
     fontFamily: 'outfit',
     fontSize: 13,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
     marginTop: 8,
     textAlign: 'center',
   },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1.5,
@@ -738,19 +747,19 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   optionCardSelected: {
-    borderColor: Colors.PRIMARY,
-    backgroundColor: Colors.PRIMARY + '08',
+    borderColor: theme.primary,
+    backgroundColor: theme.primary + '08',
   },
   optionIconBox: {
     width: 46,
     height: 46,
     borderRadius: 13,
-    backgroundColor: Colors.PRIMARY + '20',
+    backgroundColor: theme.primary + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },
   optionIconBoxSelected: {
-    backgroundColor: Colors.PRIMARY,
+    backgroundColor: theme.primary,
   },
   optionTextBox: {
     flex: 1,
@@ -758,19 +767,19 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontFamily: 'outfit-bold',
     fontSize: 16,
-    color: Colors.DARK,
+    color: theme.textPrimary,
   },
   optionLabelSelected: {
-    color: Colors.PRIMARY,
+    color: theme.primary,
   },
   optionDesc: {
     fontFamily: 'outfit',
     fontSize: 13,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
     marginTop: 2,
   },
   reviewCard: {
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 18,
     borderWidth: 1,
@@ -793,7 +802,7 @@ const styles = StyleSheet.create({
   errorText: {
     fontFamily: 'outfit',
     fontSize: 13,
-    color: Colors.ERROR,
+    color: theme.error,
     flex: 1,
     lineHeight: 18,
   },
@@ -802,9 +811,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 16,
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: Colors.LIGHT_GRAY,
+    borderTopColor: theme.divider,
     gap: 12,
   },
   backBtn: {
@@ -814,12 +823,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 18,
     borderRadius: 14,
-    backgroundColor: Colors.LIGHT_GRAY,
+    backgroundColor: theme.divider,
   },
   backBtnText: {
     fontFamily: 'outfit-medium',
     fontSize: 15,
-    color: Colors.PRIMARY,
+    color: theme.primary,
   },
   nextBtn: {
     flex: 1,
@@ -829,22 +838,22 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 16,
     borderRadius: 14,
-    backgroundColor: Colors.PRIMARY,
-    shadowColor: Colors.PRIMARY,
+    backgroundColor: theme.primary,
+    shadowColor: theme.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   nextBtnDisabled: {
-    backgroundColor: Colors.GRAY,
+    backgroundColor: theme.textSecondary,
     shadowOpacity: 0,
     elevation: 0,
   },
   nextBtnText: {
     fontFamily: 'outfit-bold',
     fontSize: 16,
-    color: Colors.WHITE,
+    color: '#FFFFFF',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -854,7 +863,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   loadingCard: {
-    backgroundColor: Colors.WHITE,
+    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 32,
     marginHorizontal: 32,
@@ -864,13 +873,13 @@ const styles = StyleSheet.create({
   loadingTitle: {
     fontFamily: 'outfit-bold',
     fontSize: 20,
-    color: Colors.DARK,
+    color: theme.textPrimary,
     textAlign: 'center',
   },
   loadingSubtitle: {
     fontFamily: 'outfit',
     fontSize: 14,
-    color: Colors.GRAY,
+    color: theme.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },

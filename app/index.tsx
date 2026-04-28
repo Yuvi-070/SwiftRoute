@@ -5,18 +5,35 @@ import Login from "../components/Login";
 import Landing from "../components/Landing";
 import { auth } from "../configs/firebaseConfig";
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 export default function Index() {
   const [showLogin, setShowLogin] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
   const user = auth.currentUser;
   const router = useRouter();
 
   React.useEffect(() => {
-    // Cast to any here because the generated router types in this project
-    // don't currently include the grouped tab paths; this preserves the
-    // runtime redirect while avoiding a compile error.
-    if (user) (router as any).replace('/(tabs)/mytrip');
+    async function checkOnboarding() {
+      if (user) {
+        (router as any).replace('/(tabs)/mytrip');
+        return;
+      }
+      
+      const hasSeenOnboarding = await AsyncStorage.getItem('@swiftroute:onboardingSeen');
+      if (hasSeenOnboarding !== 'true') {
+        (router as any).replace('/onboarding');
+      } else {
+        setIsReady(true);
+      }
+    }
+    checkOnboarding();
   }, [user, router]);
+
+  if (!isReady && !user) {
+    return null; // Or a splash screen / loading spinner
+  }
 
   return (
     <View style={{ flex: 1 }}>

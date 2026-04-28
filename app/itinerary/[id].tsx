@@ -2,8 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
+import Animated, { useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, interpolate, Extrapolation } from 'react-native-reanimated';
 import {
   ActivityIndicator,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -21,6 +23,7 @@ import { exportToPdf, generateShareText } from '../../services/exportService';
 import { Share, Alert } from 'react-native';
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import PressableScale from '../../components/ui/PressableScale';
+import MapboxAutocomplete, { type MapboxPlace } from '../../components/MapboxAutocomplete';
 
 const TIME_COLORS: Record<string, string> = {
   Morning: '#F59E0B',
@@ -46,6 +49,29 @@ export default function ItineraryScreen() {
   const [expandedDay, setExpandedDay] = useState<number>(1);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [addPlaceOpen, setAddPlaceOpen] = useState(false);
+  const [addPlaceDay, setAddPlaceDay] = useState<number>(1);
+  const [addPlaceTime, setAddPlaceTime] = useState<'Morning' | 'Afternoon' | 'Evening'>('Morning');
+
+  const scrollY = useSharedValue(0);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  const heroAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: interpolate(scrollY.value, [-100, 0, 100], [-25, 0, 0], Extrapolation.CLAMP),
+        },
+        {
+          scale: interpolate(scrollY.value, [-100, 0], [1.5, 1], Extrapolation.CLAMP),
+        }
+      ]
+    };
+  });
 
   const deleteTrip = async () => {
     try {
@@ -86,6 +112,30 @@ export default function ItineraryScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const addCustomPlaceToDay = (place: MapboxPlace) => {
+    if (!itinerary) return;
+    const targetDay = Math.min(Math.max(addPlaceDay, 1), itinerary.itinerary.length || 1);
+    const newItinerary = itinerary.itinerary.map((d) => {
+      if (d.day !== targetDay) return d;
+      const activityName = place.text ? `Visit ${place.text}` : 'Visit';
+      return {
+        ...d,
+        activities: [
+          ...d.activities,
+          {
+            time: addPlaceTime,
+            activity: activityName,
+            location: place.place_name,
+            description: 'Added by you.',
+            estimatedCost: '',
+          },
+        ],
+      };
+    });
+    setItinerary({ ...itinerary, itinerary: newItinerary });
+    setAddPlaceOpen(false);
   };
 
   useEffect(() => {
@@ -158,7 +208,7 @@ export default function ItineraryScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       {/* Hero header with gradient */}
-      <View style={[styles.hero, { backgroundColor: theme.primary }]}>
+      <Animated.View style={[styles.hero, { backgroundColor: theme.primary }, heroAnimatedStyle]}>
         <View
           style={[
             StyleSheet.absoluteFillObject,
@@ -236,6 +286,16 @@ export default function ItineraryScreen() {
                <Text style={[styles.heroActionText, { color: theme.primary }]}>Edit</Text>
              </TouchableOpacity>
           )}
+          {isEditing && (
+            <TouchableOpacity style={styles.heroActionBtn} onPress={() => {
+              setAddPlaceDay(expandedDay > 0 ? expandedDay : 1);
+              setAddPlaceTime('Morning');
+              setAddPlaceOpen(true);
+            }}>
+              <Ionicons name="add-circle-outline" size={16} color={theme.primary} />
+              <Text style={[styles.heroActionText, { color: theme.primary }]}>Add Place</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.heroActionBtn}
             onPress={() => router.push(`/chat/${id}` as never)}
@@ -304,10 +364,12 @@ export default function ItineraryScreen() {
             <Text style={[styles.heroActionText, { color: theme.primary }]}>PDF</Text>
           </TouchableOpacity>
         </ScrollView>
-      </View>
+      </Animated.View>
 
-      <ScrollView
+      <Animated.ScrollView
         style={styles.scroll}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -448,7 +510,72 @@ export default function ItineraryScreen() {
         )}
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </Animated.ScrollView>
+
+      {addPlaceOpen && isEditing && (
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.55)' }]}>
+          <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textPrimary }]}>Add a location</Text>
+              <TouchableOpacity onPress={() => setAddPlaceOpen(false)}>
+                <Ionicons name="close" size={22} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Search</Text>
+            <MapboxAutocomplete
+              placeholder="Search a place…"
+              onPlaceSelect={(place: MapboxPlace) => addCustomPlaceToDay(place)}
+            />
+
+            <View style={styles.modalRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Day</Text>
+                <View style={styles.pillRow}>
+                  {itinerary.itinerary.map((d) => (
+                    <TouchableOpacity
+                      key={d.day}
+                      style={[
+                        styles.pill,
+                        { borderColor: theme.border, backgroundColor: theme.background },
+                        addPlaceDay === d.day && { backgroundColor: theme.primaryMuted, borderColor: theme.primary },
+                      ]}
+                      onPress={() => setAddPlaceDay(d.day)}
+                    >
+                      <Text style={[styles.pillText, { color: addPlaceDay === d.day ? theme.primary : theme.textSecondary }]}>
+                        Day {d.day}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <Text style={[styles.modalLabel, { color: theme.textSecondary }]}>Time slot</Text>
+            <View style={styles.pillRow}>
+              {(['Morning', 'Afternoon', 'Evening'] as const).map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={[
+                    styles.pill,
+                    { borderColor: theme.border, backgroundColor: theme.background },
+                    addPlaceTime === t && { backgroundColor: theme.primaryMuted, borderColor: theme.primary },
+                  ]}
+                  onPress={() => setAddPlaceTime(t)}
+                >
+                  <Text style={[styles.pillText, { color: addPlaceTime === t ? theme.primary : theme.textSecondary }]}>
+                    {t}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={[styles.modalHint, { color: theme.textTertiary }]}>
+              Pick a place from search results to add it to your itinerary.
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -461,6 +588,7 @@ function DayCard({
   onToggle,
   isEditing,
   onUpdateDay,
+  onMoveActivity,
 }: {
   day: DayItinerary;
   expanded: boolean;
@@ -600,9 +728,11 @@ function DayCard({
                         onChangeText={(t) => updateActivity(i, 'location', t)} 
                       />
                     ) : (
-                      <Text style={[dayStyles.locationText, { color: theme.textSecondary }]}>
-                        {act.location}
-                      </Text>
+                      <TouchableOpacity onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(act.location)}`)} style={{ flex: 1 }}>
+                        <Text style={[dayStyles.locationText, { color: theme.primary, textDecorationLine: 'underline' }]}>
+                          {act.location}
+                        </Text>
+                      </TouchableOpacity>
                     )}
                   </View>
                   {isEditing ? (
@@ -928,5 +1058,55 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: spacing.xl,
+    zIndex: 999,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 560,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    padding: spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    ...typography.h3,
+  },
+  modalLabel: {
+    ...typography.caption,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  modalRow: {
+    marginTop: spacing.sm,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  pill: {
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: radii.full,
+  },
+  pillText: {
+    fontFamily: 'outfit-medium',
+    fontSize: 13,
+  },
+  modalHint: {
+    ...typography.bodySmall,
+    marginTop: spacing.md,
   },
 });

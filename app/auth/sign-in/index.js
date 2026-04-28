@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, TextInput, ToastAndroid, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, TextInput, ToastAndroid, TouchableOpacity, View } from 'react-native';
 import { auth, googleProvider } from '../../../configs/firebaseConfig';
 import { useTheme } from '../../../context/ThemeContext';
 import { radii, spacing, typography } from '../../../constants/theme';
@@ -17,35 +17,61 @@ export default function SignIn() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         navigation.setOptions({ headerShown: false });
     }, [navigation]);
 
-    const onSignIn = () => {
+    const notify = (message) => {
+        if (Platform.OS === 'android') {
+            ToastAndroid.show(message, ToastAndroid.LONG);
+        } else {
+            Alert.alert('Sign in', message);
+        }
+    };
+
+    const onSignIn = async () => {
         setLoginError('');
-        if (!email && !password) {
-            setLoginError('Please enter email and password.');
-            ToastAndroid.show('Please enter email and password.', ToastAndroid.LONG);
+        const trimmedEmail = (email || '').trim();
+        if (!trimmedEmail || !password) {
+            setLoginError('Please enter your email and password.');
+            notify('Please enter your email and password.');
             return;
         }
-        signInWithEmailAndPassword(auth, email, password)
-            .then((userCredential) => {
-                const user = userCredential.user;
-                router.replace('/(tabs)/mytrip');
-                console.log('Signed in', user);
-            })
-            .catch((error) => {
-                const errorCode = error.code;
-                const errorMessage = error.message;
-                console.log('Sign-in error', errorCode, errorMessage);
-                if (errorCode === 'auth/invalid-credential' || errorCode === 'auth/wrong-password' || errorCode === 'auth/user-not-found') {
-                    setLoginError('Invalid email or password.');
-                    if (Platform.OS === 'android') ToastAndroid.show('Invalid credential', ToastAndroid.LONG);
-                } else {
-                    setLoginError(errorMessage);
-                }
-            });
+        setLoading(true);
+        try {
+            const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+            const user = userCredential.user;
+            router.replace('/(tabs)/mytrip');
+            console.log('Signed in', user);
+        } catch (error) {
+            const errorCode = error?.code;
+            const errorMessage = error?.message;
+            console.log('Sign-in error', errorCode, errorMessage);
+
+            let message = 'Unable to sign in. Please try again.';
+            if (
+                errorCode === 'auth/invalid-credential' ||
+                errorCode === 'auth/wrong-password' ||
+                errorCode === 'auth/user-not-found'
+            ) {
+                message = 'Invalid email or password.';
+            } else if (errorCode === 'auth/invalid-email') {
+                message = 'Please enter a valid email address.';
+            } else if (errorCode === 'auth/too-many-requests') {
+                message = 'Too many attempts. Please wait a moment and try again.';
+            } else if (errorCode === 'auth/network-request-failed') {
+                message = 'Network error. Please check your connection and try again.';
+            } else if (errorMessage) {
+                message = errorMessage;
+            }
+
+            setLoginError(message);
+            notify(message);
+        } finally {
+            setLoading(false);
+        }
     }
 
     const onGoogleSignIn = () => {
@@ -85,7 +111,7 @@ export default function SignIn() {
             </TouchableOpacity>
             
             <Text style={[styles.title, { color: theme.textPrimary }]}>
-                Let's Sign You In
+                Let’s Sign You In
             </Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
                 Welcome Back
@@ -140,8 +166,9 @@ export default function SignIn() {
                 onPress={onSignIn}
                 style={[styles.primaryBtn, { backgroundColor: theme.primary }]}
                 activeOpacity={0.85}
+                disabled={loading}
             >
-                <Text style={styles.primaryBtnText}>Sign In</Text>
+                <Text style={styles.primaryBtnText}>{loading ? 'Signing In…' : 'Sign In'}</Text>
             </TouchableOpacity>
 
             {/* Create Account Button */}

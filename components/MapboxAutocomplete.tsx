@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Colors } from '../constants/theme';
+import { useTheme } from '../context/ThemeContext';
 
 export interface MapboxPlace {
   id: string;
@@ -36,6 +36,8 @@ export default function MapboxAutocomplete({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const { theme } = useTheme();
 
   const fetchPlaces = useCallback(async (text: string) => {
     if (!text.trim() || text.length < 2) {
@@ -81,19 +83,19 @@ export default function MapboxAutocomplete({
 
   return (
     <View style={styles.container}>
-      <View style={styles.inputWrapper}>
-        <Ionicons name="search" size={18} color={Colors.GRAY} style={styles.icon} />
+      <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
+        <Ionicons name="search" size={18} color={theme.textTertiary} style={styles.icon} />
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: theme.textPrimary }]}
           placeholder={placeholder}
-          placeholderTextColor={Colors.GRAY}
+          placeholderTextColor={theme.textTertiary}
           value={query}
           onChangeText={onChangeText}
           autoCorrect={false}
           autoCapitalize="none"
           returnKeyType="search"
         />
-        {loading && <ActivityIndicator size="small" color={Colors.PRIMARY} style={styles.icon} />}
+        {loading && <ActivityIndicator size="small" color={theme.primary} style={styles.icon} />}
         {!loading && query.length > 0 && (
           <TouchableOpacity
             onPress={() => {
@@ -102,14 +104,14 @@ export default function MapboxAutocomplete({
             }}
             style={styles.icon}
           >
-            <Ionicons name="close-circle" size={18} color={Colors.GRAY} />
+            <Ionicons name="close-circle" size={18} color={theme.textTertiary} />
           </TouchableOpacity>
         )}
       </View>
 
       {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
+        <View style={[styles.errorBox, { backgroundColor: theme.errorLight }]}>
+          <Text style={[styles.errorText, { color: theme.error }]}>{error}</Text>
         </View>
       ) : null}
 
@@ -117,16 +119,16 @@ export default function MapboxAutocomplete({
         <FlatList
           data={results}
           keyExtractor={(item) => item.id}
-          style={styles.list}
+          style={[styles.list, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.resultItem} onPress={() => handleSelect(item)}>
-              <Ionicons name="location-outline" size={16} color={Colors.PRIMARY} />
+            <TouchableOpacity style={[styles.resultItem, { borderBottomColor: theme.divider }]} onPress={() => handleSelect(item)}>
+              <Ionicons name="location-outline" size={16} color={theme.primary} />
               <View style={styles.resultText}>
-                <Text style={styles.resultMain} numberOfLines={1}>
+                <Text style={[styles.resultMain, { color: theme.textPrimary }]} numberOfLines={1}>
                   {item.text}
                 </Text>
-                <Text style={styles.resultSub} numberOfLines={1}>
+                <Text style={[styles.resultSub, { color: theme.textSecondary }]} numberOfLines={1}>
                   {item.place_name}
                 </Text>
               </View>
@@ -145,10 +147,8 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.WHITE,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
     paddingHorizontal: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -164,14 +164,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
     fontFamily: 'outfit',
-    color: Colors.DARK,
   },
   list: {
     marginTop: 6,
-    backgroundColor: Colors.WHITE,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     maxHeight: 280,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -185,7 +182,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
     gap: 10,
   },
   resultText: {
@@ -194,22 +190,18 @@ const styles = StyleSheet.create({
   resultMain: {
     fontFamily: 'outfit-medium',
     fontSize: 15,
-    color: Colors.DARK,
   },
   resultSub: {
     fontFamily: 'outfit',
     fontSize: 12,
-    color: Colors.GRAY,
     marginTop: 1,
   },
   errorBox: {
     marginTop: 8,
     padding: 10,
-    backgroundColor: '#FEF2F2',
     borderRadius: 10,
   },
   errorText: {
-    color: Colors.ERROR,
     fontFamily: 'outfit',
     fontSize: 13,
   },

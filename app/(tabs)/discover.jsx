@@ -125,7 +125,7 @@ export default function Discover() {
         <View style={styles.grid}>
           {TRENDING.map((dest, i) => (
             <AnimatedCard key={dest.name} delay={200 + i * 60}>
-              <PressableScale onPress={() => router.push('/create-trip')}>
+              <PressableScale onPress={() => router.push({ pathname: '/create-trip', params: { autoDestination: dest.name } })}>
                 <View
                   style={[
                     styles.destCard,

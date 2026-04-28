@@ -77,7 +77,7 @@ export async function fetchWeatherForecast(
     `${FORECAST_URL}?latitude=${latitude}&longitude=${longitude}` +
     `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code` +
     `&start_date=${startDate}&end_date=${endDate}` +
-    `&timezone=auto&forecast_days=16`;
+    `&timezone=auto`;
 
   const res = await fetch(url);
   if (!res.ok) {

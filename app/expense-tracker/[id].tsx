@@ -353,7 +353,7 @@ export default function ExpenseTrackerScreen() {
             <Ionicons name="receipt-outline" size={48} color={theme.textTertiary} />
             <Text style={[styles.emptyStateText, { color: theme.textPrimary }]}>No expenses yet.</Text>
             <Text style={[styles.emptyStateSubtext, { color: theme.textSecondary }]}>
-              Tap "Add" to log your first expense.
+              Tap {'"'}Add{'"'} to log your first expense.
             </Text>
           </View>
         ) : (

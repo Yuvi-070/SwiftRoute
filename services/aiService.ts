@@ -148,11 +148,17 @@ async function callGroq(prompt: string, systemMessage: string): Promise<string> 
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    if (response.status === 429 || errorText.includes('rate_limit_exceeded') || errorText.includes('model_decommissioned')) {
+    const errorText = await response.text().catch(() => '');
+    if (
+      response.status === 429 ||
+      errorText.includes('rate_limit_exceeded') ||
+      errorText.includes('model_decommissioned')
+    ) {
       throw new Error('Our AI is currently experiencing high demand. Please wait a moment and try again.');
     }
-    throw new Error(`Groq API error ${response.status}: ${errorText}`);
+    // Avoid leaking raw provider errors / request details to end users.
+    console.warn('[Groq] API error', response.status, errorText.slice(0, 500));
+    throw new Error('We couldn’t generate your plan right now. Please try again in a moment.');
   }
 
   const data = await response.json();
@@ -176,9 +182,13 @@ export async function generateItinerary(
   try {
     return JSON.parse(cleaned) as GeneratedItinerary;
   } catch (parseErr) {
-    throw new Error(
-      `Failed to parse AI response as JSON. Parse error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Response preview: ${cleaned.slice(0, 400)}`
+    console.warn(
+      '[Groq] Itinerary JSON parse failed:',
+      parseErr instanceof Error ? parseErr.message : String(parseErr),
+      'preview:',
+      cleaned.slice(0, 300)
     );
+    throw new Error('We couldn’t generate a valid itinerary. Please try again.');
   }
 }
 
@@ -220,8 +230,12 @@ Include 5-7 categories with 4-8 relevant items each. Be specific and practical.`
   try {
     return JSON.parse(cleaned) as PackingList;
   } catch (parseErr) {
-    throw new Error(
-      `Failed to parse packing list response. Parse error: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}. Response preview: ${cleaned.slice(0, 400)}`
+    console.warn(
+      '[Groq] Packing list JSON parse failed:',
+      parseErr instanceof Error ? parseErr.message : String(parseErr),
+      'preview:',
+      cleaned.slice(0, 300)
     );
+    throw new Error('We couldn’t generate a valid packing list. Please try again.');
   }
 }

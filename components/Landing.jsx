@@ -3,6 +3,8 @@ import React from 'react';
 import { Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { radii, spacing, typography } from '../constants/theme';
 import { useTheme } from '../context/ThemeContext';
+import AnimatedCard from './ui/AnimatedCard';
+import PressableScale from './ui/PressableScale';
 
 export default function Landing({ onGetStarted }) {
   const { theme, isDark } = useTheme();
@@ -17,9 +19,9 @@ export default function Landing({ onGetStarted }) {
           <Ionicons name="airplane" size={24} color={theme.primary} />
           <Text style={[styles.logoText, { color: theme.textPrimary }]}>SwiftRoute</Text>
         </View>
-        <TouchableOpacity style={[styles.navBtn, { backgroundColor: theme.primaryMuted }]} onPress={onGetStarted}>
+        <PressableScale style={[styles.navBtn, { backgroundColor: theme.primaryMuted }]} onPress={onGetStarted}>
           <Text style={[styles.navBtnText, { color: theme.primary }]}>Sign In</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
 
       {/* Hero Section */}
@@ -44,10 +46,10 @@ export default function Landing({ onGetStarted }) {
             {/* LinearGradient overlay could be here if needed */}
           </View>
 
-          <TouchableOpacity style={[styles.ctaBtn, { backgroundColor: theme.primary }]} onPress={onGetStarted}>
+          <PressableScale style={[styles.ctaBtn, { backgroundColor: theme.primary }]} onPress={onGetStarted}>
             <Text style={styles.ctaText}>Get Started for Free</Text>
             <Ionicons name="arrow-forward" size={18} color="#FFF" />
-          </TouchableOpacity>
+          </PressableScale>
         </View>
 
         {/* Feature Grid */}
@@ -74,6 +76,43 @@ export default function Landing({ onGetStarted }) {
           />
         </View>
       </View>
+
+      {/* How it works */}
+      <View style={[styles.section, { borderTopColor: theme.border }]}>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>How it works</Text>
+        <View style={[styles.stepsRow, isWeb && styles.stepsRowWeb]}>
+          <StepCard index="01" title="Tell us your trip" desc="Destination, dates, travelers, and budget." />
+          <StepCard index="02" title="Generate with AI" desc="A day‑by‑day plan with costs, tips, and packing." />
+          <StepCard index="03" title="Customize & go" desc="Edit, move activities across days, and add places you love." />
+        </View>
+      </View>
+
+      {/* Social proof */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Loved by planners</Text>
+        <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
+          A premium-feeling travel workflow: plan, pack, track, and share.
+        </Text>
+        <View style={[styles.testimonialsRow, isWeb && styles.testimonialsRowWeb]}>
+          <TestimonialCard quote="The itinerary editor is a game changer. I moved spots between days in seconds." name="Aarav" role="Weekend traveler" />
+          <TestimonialCard quote="Packing list + expenses in one place made our group trip so smooth." name="Meera" role="Group organizer" />
+          <TestimonialCard quote="Fast AI results and a clean UI. Feels like a real product." name="Kabir" role="Frequent flyer" />
+        </View>
+      </View>
+
+      {/* Footer CTA */}
+      <View style={[styles.footerCta, { backgroundColor: theme.surface, borderTopColor: theme.border }]}>
+        <View style={styles.footerInner}>
+          <Text style={[styles.footerTitle, { color: theme.textPrimary }]}>Ready to plan your next trip?</Text>
+          <Text style={[styles.footerSubtitle, { color: theme.textSecondary }]}>
+            Create a beautiful itinerary, refine it your way, then share it with your friends.
+          </Text>
+          <PressableScale style={[styles.ctaBtn, { backgroundColor: theme.primary }]} onPress={onGetStarted}>
+            <Text style={styles.ctaText}>Get Started</Text>
+            <Ionicons name="arrow-forward" size={18} color="#FFF" />
+          </PressableScale>
+        </View>
+      </View>
     </ScrollView>
   );
 }
@@ -81,13 +120,48 @@ export default function Landing({ onGetStarted }) {
 function FeatureCard({ icon, title, desc }) {
   const { theme } = useTheme();
   return (
-    <View style={[styles.featureCard, { backgroundColor: 'rgba(30, 41, 59, 0.6)', borderColor: 'rgba(255, 255, 255, 0.1)' }]}>
-      <View style={[styles.featureIconBox, { backgroundColor: theme.primaryMuted }]}>
-        <Ionicons name={icon} size={24} color={theme.primary} />
+    <AnimatedCard delay={100} style={Platform.OS === 'web' ? { width: '47%', flexGrow: 1 } : { width: '100%' }}>
+      <View style={[styles.featureCard, { backgroundColor: 'rgba(30, 41, 59, 0.6)', borderColor: 'rgba(255, 255, 255, 0.1)' }]}>
+        <View style={[styles.featureIconBox, { backgroundColor: theme.primaryMuted }]}>
+          <Ionicons name={icon} size={24} color={theme.primary} />
+        </View>
+        <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>{title}</Text>
+        <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>{desc}</Text>
       </View>
-      <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>{title}</Text>
-      <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>{desc}</Text>
-    </View>
+    </AnimatedCard>
+  );
+}
+
+function StepCard({ index, title, desc }) {
+  const { theme } = useTheme();
+  return (
+    <AnimatedCard delay={200} style={{ flex: 1 }}>
+      <View style={[styles.stepCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.stepIndex, { color: theme.primary }]}>{index}</Text>
+        <Text style={[styles.stepTitle, { color: theme.textPrimary }]}>{title}</Text>
+        <Text style={[styles.stepDesc, { color: theme.textSecondary }]}>{desc}</Text>
+      </View>
+    </AnimatedCard>
+  );
+}
+
+function TestimonialCard({ quote, name, role }) {
+  const { theme } = useTheme();
+  return (
+    <AnimatedCard delay={300} style={{ flex: 1 }}>
+      <View style={[styles.testimonialCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Text style={[styles.testimonialQuote, { color: theme.textPrimary }]}>“{quote}”</Text>
+        <View style={styles.testimonialMeta}>
+          <View style={[styles.testimonialAvatar, { backgroundColor: theme.primaryMuted }]}>
+            <Ionicons name="person" size={16} color={theme.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.testimonialName, { color: theme.textPrimary }]}>{name}</Text>
+            <Text style={[styles.testimonialRole, { color: theme.textTertiary }]}>{role}</Text>
+          </View>
+        </View>
+      </View>
+    </AnimatedCard>
   );
 }
 
@@ -219,8 +293,7 @@ const styles = StyleSheet.create({
     flex: 1.2,
   },
   featureCard: {
-    width: Platform.OS === 'web' ? '47%' : '100%',
-    flexGrow: 1,
+    width: '100%',
     padding: spacing.xl,
     borderRadius: radii.xl,
     borderWidth: 1,
@@ -240,5 +313,115 @@ const styles = StyleSheet.create({
   },
   featureDesc: {
     ...typography.body,
+  },
+  section: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: 28,
+    marginTop: 16,
+    borderTopWidth: 1,
+  },
+  sectionTitle: {
+    ...typography.h2,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+    ...Platform.select({ web: { textAlign: 'left' } }),
+  },
+  sectionSubtitle: {
+    ...typography.body,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+    maxWidth: 760,
+    alignSelf: 'center',
+    ...Platform.select({ web: { textAlign: 'left', alignSelf: 'flex-start' } }),
+  },
+  stepsRow: {
+    width: '100%',
+    gap: 14,
+  },
+  stepsRowWeb: {
+    flexDirection: 'row',
+  },
+  stepCard: {
+    borderWidth: 1,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
+    flex: 1,
+    width: '100%',
+  },
+  stepIndex: {
+    fontFamily: 'outfit-bold',
+    letterSpacing: 1,
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  stepTitle: {
+    fontFamily: 'outfit-bold',
+    fontSize: 18,
+    marginBottom: 6,
+  },
+  stepDesc: {
+    ...typography.body,
+  },
+  testimonialsRow: {
+    width: '100%',
+    gap: 14,
+  },
+  testimonialsRowWeb: {
+    flexDirection: 'row',
+  },
+  testimonialCard: {
+    borderWidth: 1,
+    borderRadius: radii.xl,
+    padding: spacing.xl,
+    flex: 1,
+    width: '100%',
+  },
+  testimonialQuote: {
+    ...typography.body,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  testimonialMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: spacing.lg,
+  },
+  testimonialAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  testimonialName: {
+    fontFamily: 'outfit-bold',
+    fontSize: 14,
+  },
+  testimonialRole: {
+    ...typography.caption,
+  },
+  footerCta: {
+    marginTop: 28,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 34,
+    borderTopWidth: 1,
+  },
+  footerInner: {
+    width: '100%',
+    maxWidth: 1000,
+    alignSelf: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  footerTitle: {
+    ...typography.h2,
+    textAlign: 'center',
+  },
+  footerSubtitle: {
+    ...typography.body,
+    textAlign: 'center',
+    maxWidth: 760,
+    marginBottom: spacing.md,
   },
 });
